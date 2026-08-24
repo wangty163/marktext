@@ -74,8 +74,22 @@ test.describe('Layout panel toggles', () => {
     const rightSideBar = page.locator('.right-side-bar')
     if (await rightSideBar.isVisible()) await page.locator('.layout-toggle-right').click()
     await expect(rightSideBar).toBeHidden()
+    await page.locator('.editor-middle').evaluate((element) => {
+      const wideProbe = document.createElement('div')
+      wideProbe.style.width = '1400px'
+      wideProbe.style.height = '1px'
+      wideProbe.style.flex = '0 0 auto'
+      element.append(wideProbe)
+    })
     await page.locator('.layout-toggle-right').click()
     await expect(rightSideBar).toBeVisible()
+    await expect(page.locator('.layout-toggle-right')).toHaveAttribute('aria-pressed', 'true')
+    await expect(rightSideBar.locator('.el-tree-node').first()).toBeVisible()
+    const { right, viewportWidth } = await rightSideBar.evaluate((element) => ({
+      right: element.getBoundingClientRect().right,
+      viewportWidth: window.innerWidth
+    }))
+    expect(right).toBeLessThanOrEqual(viewportWidth)
     await page.locator('.layout-toggle-right').click()
   })
 })

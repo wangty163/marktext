@@ -247,6 +247,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-width: 0;
   min-height: 100vh;
   position: relative;
   & > .editor {
