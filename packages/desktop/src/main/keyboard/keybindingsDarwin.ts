@@ -19,8 +19,8 @@ const keybindings: Map<string, string> = new Map([
   ['file.move-file', ''],
   ['file.rename-file', ''],
   ['file.print', ''],
-  ['file.close-tab', 'Command+W'],
-  ['file.close-window', 'Command+Shift+W'],
+  ['file.close-tab', 'Command+Shift+W'],
+  ['file.close-window', 'Command+W'],
   ['file.quit', 'Command+Q'],
 
   // File > Export submenu
