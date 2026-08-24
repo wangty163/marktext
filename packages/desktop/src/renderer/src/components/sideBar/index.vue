@@ -3,7 +3,7 @@
     v-show="showSideBar"
     ref="sideBar"
     class="side-bar"
-    :style="[!rightColumn ? { 'min-width': '45px' } : {}, { width: `${finalSideBarWidth}px` }]"
+    :style="{ width: `${finalSideBarWidth}px` }"
   >
     <div class="left-column">
       <ul>
@@ -37,7 +37,6 @@
         :tabs="tabs"
       />
       <side-bar-search v-else-if="rightColumn === 'search'" />
-      <toc v-else-if="rightColumn === 'toc'" />
     </div>
     <div
       v-show="rightColumn"
@@ -56,7 +55,6 @@ import { useEditorStore } from '@/store/editor'
 import { sideBarIcons, sideBarBottomIcons } from './help'
 import Tree from './tree.vue'
 import SideBarSearch from './search.vue'
-import Toc from './toc.vue'
 import { storeToRefs } from 'pinia'
 import type { TabDescriptor } from './types'
 
@@ -77,7 +75,6 @@ const { tabs } = storeToRefs(editorStore)
 
 const finalSideBarWidth = computed<number>(() => {
   if (!showSideBar.value) return 0
-  if (rightColumn.value === '') return 45
   return sideBarViewWidth.value < 220 ? 220 : sideBarViewWidth.value
 })
 
@@ -115,21 +112,8 @@ onMounted(() => {
 })
 
 const handleLeftIconClick = (name: string): void => {
-  if (rightColumn.value === name) {
-    // Capture the expanded width BEFORE collapsing: once rightColumn is '',
-    // finalSideBarWidth evaluates to the 45px icon strip and would overwrite
-    // the user's real width with the clamped 220px minimum (#2421).
-    const widthToPersist = finalSideBarWidth.value
-    layoutStore.SET_LAYOUT({ rightColumn: '' })
-    layoutStore.CHANGE_SIDE_BAR_WIDTH(widthToPersist)
-  } else {
-    const needDispatch = rightColumn.value === ''
-    layoutStore.SET_LAYOUT({ rightColumn: name })
-    sideBarViewWidth.value = +sideBarWidth.value
-    if (needDispatch) {
-      layoutStore.CHANGE_SIDE_BAR_WIDTH(finalSideBarWidth.value)
-    }
-  }
+  layoutStore.SET_LAYOUT({ rightColumn: name })
+  sideBarViewWidth.value = +sideBarWidth.value
 }
 
 const handleLeftBottomClick = (name: string): void => {

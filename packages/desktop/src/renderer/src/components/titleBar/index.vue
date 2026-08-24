@@ -46,16 +46,23 @@
           />
         </span>
       </div>
-      <div :class="showCustomTitleBar ? 'left-toolbar title-no-drag' : 'right-toolbar'">
+      <div
+        v-if="showCustomTitleBar"
+        class="left-toolbar title-no-drag"
+      >
         <div
-          v-if="showCustomTitleBar"
           class="frameless-titlebar-menu title-no-drag"
           @click.stop="handleMenuClick"
         >
           <span class="text-center-vertical">&#9776;</span>
         </div>
+      </div>
+      <div
+        v-if="wordCount"
+        class="word-count-toolbar title-no-drag"
+        :class="{ frameless: showWindowControls }"
+      >
         <el-tooltip
-          v-if="wordCount"
           class="item"
           :content="`${wordCount[show]} ${HASH[show].full + (wordCount[show] > 1 ? 's' : '')}`"
           placement="bottom-end"
@@ -81,7 +88,7 @@
         </el-tooltip>
       </div>
       <div
-        v-if="titleBarStyle === 'custom' && !isFullScreen && !isOsx"
+        v-if="showWindowControls"
         class="right-toolbar"
         :class="[{ 'title-no-drag': titleBarStyle === 'custom' }]"
       >
@@ -132,6 +139,31 @@
           </div>
         </div>
       </div>
+    </div>
+    <div
+      class="layout-controls"
+      :class="{ osx: isOsx, frameless: showWindowControls }"
+    >
+      <button
+        class="layout-toggle layout-toggle-left"
+        :class="{ active: showSideBar }"
+        :title="t('menu.view.toggleSidebar')"
+        :aria-label="t('menu.view.toggleSidebar')"
+        :aria-pressed="showSideBar"
+        @click.stop="togglePanel('showSideBar')"
+      >
+        <span class="panel-icon panel-icon-left" />
+      </button>
+      <button
+        class="layout-toggle layout-toggle-right"
+        :class="{ active: showRightSideBar }"
+        :title="t('menu.view.toggleTableOfContents')"
+        :aria-label="t('menu.view.toggleTableOfContents')"
+        :aria-pressed="showRightSideBar"
+        @click.stop="togglePanel('showRightSideBar')"
+      >
+        <span class="panel-icon panel-icon-right" />
+      </button>
     </div>
   </div>
 </template>
@@ -210,7 +242,12 @@ onMounted(async () => {
 })
 
 const { titleBarStyle } = storeToRefs(preferencesStore)
-const { showTabBar } = storeToRefs(layoutStore)
+const { showTabBar, showSideBar, showRightSideBar } = storeToRefs(layoutStore)
+
+const togglePanel = (name: 'showSideBar' | 'showRightSideBar'): void => {
+  layoutStore.TOGGLE_LAYOUT_ENTRY(name)
+  layoutStore.DISPATCH_LAYOUT_MENU_ITEMS()
+}
 
 const paths = computed(() => {
   if (!props.pathname) return []
@@ -220,6 +257,10 @@ const paths = computed(() => {
 
 const showCustomTitleBar = computed(() => {
   return titleBarStyle.value === 'custom' && !isOsx
+})
+
+const showWindowControls = computed(() => {
+  return showCustomTitleBar.value && !isFullScreen.value
 })
 
 const showTitleBar = computed(() => {
@@ -409,6 +450,17 @@ div.title > span {
   display: flex;
   flex-direction: row;
 }
+.word-count-toolbar {
+  height: 100%;
+  position: absolute;
+  top: 0;
+  right: 44px;
+  display: flex;
+  align-items: center;
+}
+.word-count-toolbar.frameless {
+  right: 182px;
+}
 .right-toolbar {
   height: 100%;
   position: absolute;
@@ -421,6 +473,96 @@ div.title > span {
   & .item {
     margin-right: 10px;
   }
+}
+
+.layout-controls {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--titleBarHeight);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.layout-toggle {
+  -webkit-app-region: no-drag;
+  position: absolute;
+  top: calc((var(--titleBarHeight) - 28px) / 2);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--editorColor50);
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.layout-toggle:hover,
+.layout-toggle.active {
+  color: var(--sideBarTitleColor);
+  background: var(--sideBarBgColor);
+}
+
+.layout-toggle:focus-visible {
+  outline: 2px solid var(--themeColor);
+  outline-offset: -2px;
+}
+
+.layout-toggle-left {
+  left: 8px;
+}
+
+.layout-toggle-right {
+  right: 8px;
+}
+
+.layout-controls.osx .layout-toggle-left {
+  left: 70px;
+}
+
+.layout-controls.frameless .layout-toggle-left {
+  left: 42px;
+}
+
+.layout-controls.frameless .layout-toggle-right {
+  right: 146px;
+}
+
+.panel-icon {
+  box-sizing: border-box;
+  width: 16px;
+  height: 14px;
+  position: relative;
+  display: block;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+}
+
+.panel-icon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: currentColor;
+  opacity: 0.35;
+}
+
+.panel-icon-left::before {
+  left: 0;
+}
+
+.panel-icon-right::before {
+  right: 0;
+}
+
+.layout-toggle.active .panel-icon::before {
+  opacity: 1;
 }
 
 .word-count {

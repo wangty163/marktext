@@ -64,7 +64,7 @@ export const showTabBar = (win: Win): void => {
 }
 
 export const showTableOfContents = (win: Win): void => {
-  setLayout(win, 'rightColumn', 'toc')
+  toggleLayout(win, 'showRightSideBar')
 }
 
 export const toggleTypewriterMode = (win: Win): void => {
@@ -123,6 +123,9 @@ export const viewLayoutChanged = (
         break
       case 'showTabBar':
         changeMenuByName('tabBarMenuItem', value)
+        break
+      case 'showRightSideBar':
+        changeMenuByName('tocMenuItem', value)
         break
       case 'sourceCode':
         changeMenuByName('sourceCodeModeMenuItem', !!value)

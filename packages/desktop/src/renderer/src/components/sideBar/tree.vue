@@ -177,9 +177,9 @@ const props = defineProps<{
 
 const depth = 0
 // Persist the section collapse state (#2421). The tree is rendered under a
-// v-if and is destroyed when the sidebar collapses to its icon strip, so local
-// refs reset to expanded on re-open. Back them with localStorage (like the
-// sidebar width) so the state survives a re-mount and app restart.
+// v-if and is destroyed when switching to search, so local refs reset to
+// expanded on return. Back them with localStorage so the state survives a
+// re-mount and app restart.
 const SHOW_DIRECTORIES_KEY = 'side-bar-show-directories'
 const SHOW_OPENED_FILES_KEY = 'side-bar-show-opened-files'
 const readSectionExpanded = (key: string): boolean => localStorage.getItem(key) !== 'false'

@@ -4,8 +4,8 @@ import { launchWithMarkdown, clickMenuById, waitForEditor } from './helpers'
 
 // Item 240 — TOC/outline panel CONTENT + live update.
 //
-// layout-toggles.spec.ts only asserts the `tocMenuItem` toggle does not throw,
-// and toc-scroll.spec.ts only asserts that clicking a node scrolls the editor.
+// layout-toggles.spec.ts asserts the right panel can be shown and hidden, and
+// toc-scroll.spec.ts asserts that clicking a node scrolls the editor.
 // Neither asserts the rendered tree *content*: that the el-tree node labels and
 // their nesting match the document's heading hierarchy, nor that the tree
 // updates LIVE when a heading is renamed / added.
@@ -47,16 +47,16 @@ const readTocTree = (page: Page): Promise<Array<{ label: string; depth: number }
 const readTocLabels = async(page: Page): Promise<string[]> =>
   (await readTocTree(page)).map((n) => n.label)
 
-const ensureSidebarVisible = async(app: ElectronApplication, page: Page): Promise<void> => {
+const ensureTocVisible = async(app: ElectronApplication, page: Page): Promise<void> => {
   const visible = await page.evaluate(() => {
-    const el = document.querySelector('.side-bar') as HTMLElement | null
+    const el = document.querySelector('.right-side-bar') as HTMLElement | null
     return !!(el && el.offsetParent !== null)
   })
   if (!visible) {
-    await clickMenuById(app, 'sideBarMenuItem')
+    await clickMenuById(app, 'tocMenuItem')
     await page.waitForFunction(
       () => {
-        const el = document.querySelector('.side-bar') as HTMLElement | null
+        const el = document.querySelector('.right-side-bar') as HTMLElement | null
         return !!(el && el.offsetParent !== null)
       },
       null,
@@ -74,9 +74,7 @@ test.describe('TOC panel content + live update', () => {
     app = launched.app
     page = launched.page
     await waitForEditor(page)
-    await ensureSidebarVisible(app, page)
-    // Switch the sidebar right-column to the ToC (el-tree).
-    await clickMenuById(app, 'tocMenuItem')
+    await ensureTocVisible(app, page)
     await page.waitForSelector('.side-bar-toc .el-tree', { state: 'visible', timeout: 10000 })
     // The tree is seeded from `editor.getTOC()` on mount. Wait until every
     // initial heading has rendered a node before asserting.

@@ -63,16 +63,16 @@ const isHeadingInViewport = (page: Page, index: number): Promise<boolean> =>
 const tocLabel = (page: Page, text: string) =>
   page.locator('.side-bar-toc').getByText(text, { exact: true })
 
-const showSidebar = async(app: ElectronApplication, page: Page): Promise<void> => {
+const showToc = async(app: ElectronApplication, page: Page): Promise<void> => {
   const visible = await page.evaluate(() => {
-    const el = document.querySelector('.side-bar') as HTMLElement | null
+    const el = document.querySelector('.right-side-bar') as HTMLElement | null
     return !!(el && el.offsetParent !== null)
   })
   if (!visible) {
-    await clickMenuById(app, 'sideBarMenuItem')
+    await clickMenuById(app, 'tocMenuItem')
     await page.waitForFunction(
       () => {
-        const el = document.querySelector('.side-bar') as HTMLElement | null
+        const el = document.querySelector('.right-side-bar') as HTMLElement | null
         return !!(el && el.offsetParent !== null)
       },
       null,
@@ -90,9 +90,7 @@ test.describe('TOC sidebar click scrolls the live editor', () => {
     app = launched.app
     page = launched.page
     await waitForEditor(page)
-    // Open the sidebar and switch its right column to the ToC (el-tree).
-    await showSidebar(app, page)
-    await clickMenuById(app, 'tocMenuItem')
+    await showToc(app, page)
     await page.waitForSelector('.side-bar-toc .el-tree', { state: 'visible', timeout: 10000 })
     // The TOC is seeded from `editor.getTOC()` on mount / json-change. Wait
     // until every heading has rendered a tree node before clicking.
