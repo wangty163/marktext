@@ -30,3 +30,5 @@ Name tests `*.spec.ts`. Add a focused regression test for behavior changes; ther
 Follow the history's Conventional Commit style: `fix(desktop): preserve RTL text direction`, `fix(muya): ...`, or `docs: ...`. Keep commits scoped and avoid drive-by cleanup. Open PRs against `develop`, link the issue (`Closes #123`), explain the problem and solution, include a test plan, and attach screenshots or recordings for visible changes. Run relevant tests, `pnpm check`, and CI before requesting review.
 
 After every completed development task in this repository, decide whether the README or related docs need updating, commit the verified task changes, and push the current branch to `origin` unless the user explicitly says not to. Do not include unrelated user changes in the commit.
+
+For local macOS installs, replace only `/Applications/MarkText.app`: move the existing bundle to a non-`.app` backup outside `/Applications`, copy the verified build to that exact path, then unregister and move the packaged `.app` artifact out of the indexed workspace. Confirm that bundle-id lookup returns only the installed application.

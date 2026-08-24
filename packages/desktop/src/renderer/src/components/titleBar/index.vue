@@ -529,6 +529,10 @@ div.title > span {
   left: 78px;
 }
 
+.layout-controls.osx .layout-toggle-left .panel-icon {
+  transform: translateY(2px);
+}
+
 .layout-controls.frameless .layout-toggle-left {
   left: 42px;
 }
