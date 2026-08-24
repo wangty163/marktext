@@ -488,24 +488,28 @@ div.title > span {
 .layout-toggle {
   -webkit-app-region: no-drag;
   position: absolute;
-  top: calc((var(--titleBarHeight) - 28px) / 2);
-  width: 28px;
-  height: 28px;
+  top: calc((var(--titleBarHeight) - 24px) / 2);
+  width: 24px;
+  height: 24px;
   padding: 0;
   display: grid;
   place-items: center;
-  color: var(--editorColor50);
+  color: var(--editorColor30);
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: 3px;
   cursor: pointer;
   pointer-events: auto;
+  transition: color 0.25s ease-in-out, background-color 0.25s ease-in-out;
 }
 
-.layout-toggle:hover,
-.layout-toggle.active {
+.layout-toggle:hover {
   color: var(--sideBarTitleColor);
   background: var(--sideBarBgColor);
+}
+
+.layout-toggle.active {
+  color: var(--themeColor);
 }
 
 .layout-toggle:focus-visible {
@@ -522,7 +526,7 @@ div.title > span {
 }
 
 .layout-controls.osx .layout-toggle-left {
-  left: 70px;
+  left: 78px;
 }
 
 .layout-controls.frameless .layout-toggle-left {
