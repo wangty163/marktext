@@ -16,6 +16,7 @@ Use Node.js 20.19+ and pnpm 10 from the repository root.
 - `pnpm --filter @muyajs/core test` runs Muya unit tests.
 
 Prefer filtered commands for package-specific work, for example `pnpm -C packages/desktop exec vitest run test/unit/specs/pdf.spec.ts`.
+If that command tries to reconcile an already-populated `node_modules` in a non-interactive run, use the existing local binaries directly: `packages/desktop/node_modules/.bin/vitest`, `packages/desktop/node_modules/.bin/vue-tsc`, and root `node_modules/.bin/eslint`.
 For focused Electron E2E, pass only the exact spec after `pnpm -C packages/desktop test:e2e --`; the script already owns the E2E directory and single-worker config, so do not add another directory positional argument.
 
 ## Coding Style & Naming Conventions
@@ -32,5 +33,5 @@ Follow the history's Conventional Commit style: `fix(desktop): preserve RTL text
 
 After every completed development task in this repository, decide whether the README or related docs need updating, commit the verified task changes, and push the current branch to `origin` unless the user explicitly says not to. Do not include unrelated user changes in the commit.
 
-For local macOS installs, replace only `/Applications/MarkText.app`: move the existing bundle to a non-`.app` backup outside `/Applications`, copy the verified build to that exact path, then unregister and move the packaged `.app` artifact out of the indexed workspace. Confirm that bundle-id lookup returns only the installed application.
+For local macOS installs, replace only `/Applications/MarkText.app`: move the existing bundle to a non-`.app` backup outside `/Applications`, copy the verified build to that exact path, then unregister and move the packaged `.app` artifact out of the indexed workspace. Treat LaunchServices error `-10814` as “not registered” and do not retry renamed backups. Confirm that bundle-id lookup returns only the installed application.
 After a visible macOS change, launch that installed path once and verify the actual window and interaction; bundle contents, DOM assertions, and source-run screenshots do not replace installed-window visual QA.
