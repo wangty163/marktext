@@ -530,7 +530,7 @@ div.title > span {
 }
 
 .layout-controls.osx .layout-toggle-left .panel-icon {
-  transform: translateY(4px);
+  transform: translateY(2px);
 }
 
 .layout-controls.frameless .layout-toggle-left {
