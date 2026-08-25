@@ -105,12 +105,14 @@ function getOffset(offset: number, token: Token) {
 
         case 'del':
 
+        case 'mark':
+
         case 'em':
 
         case 'inline_code':
 
         case 'inline_math': {
-            const markerLen = type === 'strong' || type === 'del' ? 2 : 1;
+            const markerLen = type === 'strong' || type === 'del' || type === 'mark' ? 2 : 1;
             return markeredOffset(dis, len, markerLen, markerLen);
         }
 
@@ -138,6 +140,8 @@ function clearFormat(token: Token, cursor: IContentCursor) {
         case 'strong':
 
         case 'del':
+
+        case 'mark':
 
         case 'em':
 

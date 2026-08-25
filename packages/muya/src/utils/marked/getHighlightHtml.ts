@@ -6,6 +6,7 @@ import cjkEmStrongExtension from './extensions/cjkEmStrong';
 import emojiExtension from './extensions/emoji';
 import footnoteExtension from './extensions/footnote';
 import mathExtension from './extensions/math';
+import markExtension from './extensions/mark';
 import superSubScriptExtension from './extensions/superSubscript';
 import fm, { frontMatterRender } from './frontMatter';
 import { DEFAULT_OPTIONS } from './options';
@@ -56,6 +57,7 @@ export function getHighlightHtml(src: string, options: ILexOption = {}) {
     marked.use(cjkEmStrongExtension());
 
     marked.use(emojiExtension({ isRenderEmoji: true }));
+    marked.use(markExtension());
 
     if (math) {
         marked.use(

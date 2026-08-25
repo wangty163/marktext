@@ -96,7 +96,9 @@ const cases: MenuCase[] = [
   { name: 'bullet list', markdown: '- item\n', selector: '.mu-bullet-list .mu-paragraph-content', expected: ['bulletListMenuItem'] },
   { name: 'ordered list', markdown: '1. item\n', selector: '.mu-order-list .mu-paragraph-content', expected: ['orderListMenuItem'] },
   { name: 'task list', markdown: '- [ ] task\n', selector: '.mu-task-list .mu-paragraph-content', expected: ['taskListMenuItem'] },
-  { name: 'loose list', markdown: '- one\n\n- two\n', selector: '.mu-bullet-list .mu-paragraph-content', expected: ['bulletListMenuItem', 'looseListItemMenuItem'] },
+  // Imported blank-line gaps are preserved per item; they do not flip the
+  // whole list's explicit loose toggle (see blankLineRoundTrip.spec.ts).
+  { name: 'list with a preserved gap', markdown: '- one\n\n- two\n', selector: '.mu-bullet-list .mu-paragraph-content', expected: ['bulletListMenuItem'] },
   { name: 'quote block', markdown: '> quote\n', selector: '.mu-block-quote .mu-paragraph-content', expected: ['quoteBlockMenuItem'] },
   { name: 'code block', markdown: '```js\nconst a = 1\n```\n', selector: '.mu-code-block .mu-codeblock-content', expected: ['codeFencesMenuItem'] },
   { name: 'math block', markdown: '$$\na = b\n$$\n', selector: '.mu-math-block .mu-codeblock-content', expected: ['mathBlockMenuItem'], disabled: true },

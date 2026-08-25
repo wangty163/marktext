@@ -13,9 +13,9 @@ import {
 //
 // The toggle ACTION (`updateParagraph('loose-list-item')`) is unit-covered in
 // packages/muya/src/__tests__/updateParagraph.spec.ts, and the menu CHECKMARK
-// reflection for an already-loose list is e2e-covered in
-// parity-pg1-menu-state.spec.ts (line 99). What was NOT covered is the
-// end-to-end "menu click flips the source blank-lines" path: a user with the
+// reflection is unit-covered by the engine and menu-state suites. What is not
+// covered headlessly is the end-to-end "menu click flips the source
+// blank-lines" path: a user with the
 // caret inside a tight list invokes Paragraph → Loose List Item and the
 // serialized markdown gains (or loses) the blank line between items.
 //

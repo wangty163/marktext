@@ -52,6 +52,15 @@ const checkboxCount = async(page: Page): Promise<number> => {
   )
 }
 
+const waitForEditorUpdate = async(page: Page): Promise<void> => {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      )
+  )
+}
+
 // Reset the document back to the all-unchecked nested fixture via source mode,
 // then wait for the three rendered checkboxes to re-attach unchecked.
 const reloadFixture = async(page: Page, app: ElectronApplication): Promise<void> => {
@@ -95,6 +104,7 @@ test.describe('Checklist 32 — task list autoCheck cascade via a real checkbox 
     await expect.poll(() => checkboxChecked(page, 0)).toBe(true)
     await expect.poll(() => checkboxChecked(page, 1)).toBe(true)
     await expect.poll(() => checkboxChecked(page, 2)).toBe(true)
+    await waitForEditorUpdate(page)
 
     // Saved markdown shows the checked marker for all three task items.
     const md = await getMarkdownContent(page, app)
@@ -119,6 +129,7 @@ test.describe('Checklist 32 — task list autoCheck cascade via a real checkbox 
     // No cascade: both children stay unchecked.
     expect(await checkboxChecked(page, 1)).toBe(false)
     expect(await checkboxChecked(page, 2)).toBe(false)
+    await waitForEditorUpdate(page)
 
     // Saved markdown shows exactly one checked marker (the parent).
     const md = await getMarkdownContent(page, app)

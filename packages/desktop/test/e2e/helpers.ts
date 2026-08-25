@@ -254,7 +254,9 @@ export const getMarkdownContent = async(
 
 export const typeIntoEditor = async(page: Page, text: string): Promise<void> => {
   await page.click('.editor-component', { timeout: 5000 })
-  await page.keyboard.type(text, { delay: 0 })
+  // Let contenteditable settle between input-driven renders. At delay: 0 the
+  // next key can target a span that Muya has just replaced, dropping a letter.
+  await page.keyboard.type(text, { delay: 10 })
 }
 
 // The @muyajs/core engine wraps editable paragraph text in
