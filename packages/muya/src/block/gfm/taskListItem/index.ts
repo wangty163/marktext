@@ -61,6 +61,8 @@ class TaskListItem extends Parent {
         this.tagName = 'li';
         this.meta = meta;
         this.classList = [CLASS_NAMES.MU_TASK_LIST_ITEM];
+        if (meta.blankLinesBefore)
+            this.attributes.style = `margin-top: ${meta.blankLinesBefore}lh`;
         this.createDomNode();
     }
 

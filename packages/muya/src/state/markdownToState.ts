@@ -1,4 +1,4 @@
-import type { TBlockToken } from '../utils/marked/types';
+import type { ListItemToken, TBlockToken, TLexedToken } from '../utils/marked/types';
 import type {
     IAtxHeadingState,
     IBulletListState,
@@ -62,12 +62,14 @@ export class MarkdownToState {
         // markdownToState injects synthetic `block-end` markers (see the
         // blockquote/list/list_item/footnote cases below) to pop the parent
         // stack, so the working stream is wider than what `lexBlock` returns.
-        const tokens: TBlockToken[] = lexBlock(markdown, {
-            footnote,
-            math,
-            frontMatter,
-            isGitlabCompatibilityEnabled,
-        });
+        const tokens: TBlockToken[] = this._preserveBlankLines(
+            lexBlock(markdown, {
+                footnote,
+                math,
+                frontMatter,
+                isGitlabCompatibilityEnabled,
+            }),
+        );
 
         const states: TState[] = [];
         let token: TBlockToken | undefined;
@@ -82,6 +84,67 @@ export class MarkdownToState {
         }
 
         return states.length ? states : [{ name: 'paragraph', text: '' }];
+    }
+
+    private _preserveBlankLines(
+        tokens: TLexedToken[],
+        preserveSpaces = false,
+    ): TLexedToken[] {
+        const result: TLexedToken[] = [];
+        let previousRaw: string | undefined;
+
+        for (const token of tokens) {
+            if (token.type === 'space') {
+                const lineBreaks = token.raw.match(/\n/g)?.length ?? 0;
+                const blankLines = Math.max(
+                    0,
+                    lineBreaks - (previousRaw !== undefined && !previousRaw.endsWith('\n') ? 1 : 0),
+                );
+                if (preserveSpaces)
+                    result.push(...this._blankLineTokens(blankLines));
+            }
+            else {
+                if (token.type === 'list') {
+                    // Preserve each source gap on its following item. Keeping
+                    // marked's list-wide `loose` flag would spread one gap to
+                    // every item when the document is next serialized.
+                    token.loose = false;
+                    const items = token.items as ListItemToken[];
+                    for (const [index, item] of items.entries()) {
+                        if (index > 0) {
+                            const previousRaw = items[index - 1].raw;
+                            const trailing = previousRaw.match(/(?:\r?\n[\t ]*)+$/)?.[0] ?? '';
+                            item.blankLinesBefore = Math.max(
+                                0,
+                                (trailing.match(/\n/g)?.length ?? 0) - 1,
+                            );
+                        }
+                        const childTokens = [...item.tokens] as TLexedToken[];
+                        while (childTokens.at(-1)?.type === 'space')
+                            childTokens.pop();
+                        item.tokens = this._preserveBlankLines(
+                            childTokens,
+                            true,
+                        ) as ListItemToken['tokens'];
+                    }
+                }
+                else if (token.type === 'blockquote' || token.type === 'footnote') {
+                    token.tokens = this._preserveBlankLines(
+                        token.tokens as TLexedToken[],
+                        preserveSpaces,
+                    ) as typeof token.tokens;
+                }
+                result.push(token);
+            }
+
+            previousRaw = token.raw;
+        }
+
+        return result;
+    }
+
+    private _blankLineTokens(count: number): TLexedToken[] {
+        return Array.from({ length: count }, () => ({ type: 'space', raw: '\n' }));
     }
 
     private _handleContainerToken(
@@ -174,17 +237,24 @@ export class MarkdownToState {
                 if (listItemType === 'task') {
                     itemState = {
                         name: 'task-list-item',
-                        meta: { checked: Boolean(checked) },
+                        meta: {
+                            checked: Boolean(checked),
+                            ...(token.blankLinesBefore
+                                ? { blankLinesBefore: token.blankLinesBefore }
+                                : {}),
+                        },
                         children: [],
                     };
                 }
                 else {
                     itemState = {
                         name: 'list-item',
+                        ...(token.blankLinesBefore
+                            ? { meta: { blankLinesBefore: token.blankLinesBefore } }
+                            : {}),
                         children: [],
                     };
                 }
-
                 state = itemState;
                 parentList[0].push(state);
                 parentList.unshift(state.children);
@@ -383,6 +453,11 @@ export class MarkdownToState {
             }
 
             case 'space': {
+                state = {
+                    name: 'paragraph' as const,
+                    text: '',
+                };
+                parentList[0].push(state);
                 break;
             }
 

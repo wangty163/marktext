@@ -115,13 +115,13 @@ describe('paste — same-type list merges into the enclosing list (A5, muyajs pa
         expect(md).not.toContain('- ax');
     });
 
-    it('merges into the cursor paragraph of a loose item, not the first paragraph', async () => {
-        // Loose item with two paragraphs; cursor in the SECOND ("second"@2).
+    it('merges into the cursor paragraph without spreading its earlier gap', async () => {
+        // Item with two paragraphs; cursor in the SECOND ("second"@2).
         const muya = bootMuya('- a\n\n  second\n');
         const blocks = contentBlocks(muya);
         const second = blocks.find(b => b.text === 'second')!;
         // 'a' must survive; 'second'@2 -> 'se' + 'x', tail 'cond' sews to 'y'.
-        expect(await paste(muya, second, 2, 2, '- x\n- y')).toBe('- a\n\n  sex\n\n- ycond\n');
+        expect(await paste(muya, second, 2, 2, '- x\n- y')).toBe('- a\n\n  sex\n- ycond\n');
     });
 
     it('places the caret after the folded text on a single-item merge', async () => {

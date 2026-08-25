@@ -169,9 +169,9 @@ describe('parity PG1: selection-change block affiliation', () => {
     );
 
     it(
-        'PG1: loose lists report isLooseListItem true on both the list and the item',
+        'PG1: imported list gaps do not loosen unrelated items',
         () => {
-            // Blank lines between items make a loose list.
+            // The exact gap is represented by an empty paragraph on the first item.
             const muya = bootMuya('- one\n\n- two\n');
             const leaf = muya.editor.scrollPage!.firstContentInDescendant()!;
             const payload = emitSelectionFor(muya, leaf);
@@ -180,9 +180,8 @@ describe('parity PG1: selection-change block affiliation', () => {
                 isLooseListItem?: boolean;
             }>;
 
-            // Loose-ness lives on the list block; the `li` entry mirrors it.
-            expect(affiliation.find(e => e.type === 'ul')?.isLooseListItem).toBe(true);
-            expect(affiliation.find(e => e.type === 'li')?.isLooseListItem).toBe(true);
+            expect(affiliation.find(e => e.type === 'ul')?.isLooseListItem).toBe(false);
+            expect(affiliation.find(e => e.type === 'li')?.isLooseListItem).toBe(false);
         },
     );
 });

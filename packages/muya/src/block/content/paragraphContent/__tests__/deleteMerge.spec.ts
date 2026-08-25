@@ -158,8 +158,9 @@ describe('forward Delete merging a list item that owns a nested sublist (#1845)'
         const item = list.children[0] as { name: string; children: unknown[] };
         expect(item.name).toBe('list-item');
         expect(item.children[0]).toMatchObject({ name: 'paragraph', text: 'C' });
-        expect(item.children[1]).toMatchObject({ name: 'bullet-list' });
-        const sublist = item.children[1] as { children: Array<{ children: unknown[] }> };
+        expect(item.children[1]).toMatchObject({ name: 'paragraph', text: '' });
+        expect(item.children[2]).toMatchObject({ name: 'bullet-list' });
+        const sublist = item.children[2] as { children: Array<{ children: unknown[] }> };
         expect(sublist.children[0].children[0]).toMatchObject({
             name: 'paragraph',
             text: 'D',

@@ -1,4 +1,3 @@
-/* eslint-disable no-fallthrough */
 import type {
     IAtxHeadingState,
     IBlockQuoteState,
@@ -129,7 +128,7 @@ export default class ExportMarkdown {
                 this._serializeListItemBlock(state, result, indent, listIndent);
             }
             else {
-                this._serializeSimpleBlock(state, result, indent);
+                this._serializeSimpleBlock(state, result, indent, previousState === undefined);
             }
 
             previousState = state;
@@ -138,13 +137,26 @@ export default class ExportMarkdown {
         return result.join('');
     }
 
-    private _serializeSimpleBlock(state: TState, result: string[], indent: string) {
+    private _serializeSimpleBlock(
+        state: TState,
+        result: string[],
+        indent: string,
+        isFirst: boolean,
+    ) {
         switch (state.name) {
             case 'frontmatter':
                 result.push(this._serializeFrontMatter(state));
                 break;
 
             case 'paragraph':
+
+                if (state.text === '') {
+                    result.push(`${isFirst ? indent : indent.replace(/ +$/, '')}\n`);
+                    break;
+                }
+                this._insertLineBreak(result, indent);
+                result.push(this._serializeTextParagraph(state, indent));
+                break;
 
             case 'thematic-break':
                 this._insertLineBreak(result, indent);
@@ -260,11 +272,16 @@ export default class ExportMarkdown {
         listIndent: string,
     ) {
         const { loose } = this._listType[this._listType.length - 1];
+        const blankLinesBefore = state.meta?.blankLinesBefore ?? 0;
 
         // helper variable to correct the first tight item in a nested list
         this._isLooseParentList = loose;
-        if (loose)
+        if (blankLinesBefore) {
+            result.push(`${indent.replace(/ +$/, '')}\n`.repeat(blankLinesBefore));
+        }
+        else if (loose) {
             this._insertLineBreak(result, indent);
+        }
 
         result.push(this._serializeListItem(state, indent + listIndent));
         this._isLooseParentList = true;
@@ -272,6 +289,10 @@ export default class ExportMarkdown {
 
     private _insertLineBreak(result: unknown[], indent: string) {
         if (!result.length)
+            return;
+        const lastChunk = String(result[result.length - 1]);
+        const lines = lastChunk.split('\n');
+        if (lines.at(-2) === indent.replace(/ +$/, ''))
             return;
         // Blank lines inside a list item should be empty, not carry the
         // item's indent as trailing whitespace. For blockquote-style indents

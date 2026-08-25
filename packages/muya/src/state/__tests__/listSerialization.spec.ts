@@ -190,7 +190,7 @@ describe('stateToMarkdown — nested empty list items', () => {
         const out = serializeState(states);
         expect(out).toBe('- a\n\n  - \n  - \n');
         const outer = parseMarkdown(out)[0] as IBulletListState;
-        expect(outer.meta.loose).toBe(true);
+        expect(outer.meta.loose).toBe(false);
         const nested = firstNestedBulletList(outer);
         expect(nested.meta.marker).toBe('-');
         expect(nested.children).toHaveLength(2);
@@ -533,9 +533,7 @@ describe('stateToMarkdown — list looseness (preferLooseListItem)', () => {
         expect(serialize([bulletList(false)])).toBe('- foo\n- bar\n- baz\n');
     });
 
-    it('list meta.loose carries the preferLooseListItem flag verbatim', () => {
-        // The serializer is the only consumer of meta.loose; assert the round
-        // contract by parsing a canonical loose list and reading the flag back.
+    it('imports loose spacing as explicit empty paragraphs', () => {
         const looseStates = new MarkdownToState({
             footnote: false,
             math: false,
@@ -545,7 +543,8 @@ describe('stateToMarkdown — list looseness (preferLooseListItem)', () => {
         }).generate('- foo\n\n- bar\n');
         const list = looseStates[0] as IBulletListState;
         expect(list.name).toBe('bullet-list');
-        expect(list.meta.loose).toBe(true);
+        expect(list.meta.loose).toBe(false);
+        expect(list.children[1].meta?.blankLinesBefore).toBe(1);
 
         const tightStates = new MarkdownToState({
             footnote: false,

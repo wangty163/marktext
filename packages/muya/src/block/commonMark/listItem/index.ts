@@ -14,7 +14,7 @@ class ListItem extends Parent {
     static override blockName = 'list-item';
 
     static create(muya: Muya, state: IListItemState) {
-        const listItem = new ListItem(muya);
+        const listItem = new ListItem(muya, state);
 
         listItem.append(
             ...state.children.map(child =>
@@ -32,16 +32,24 @@ class ListItem extends Parent {
         return [...pPath, offset, 'children'];
     }
 
-    constructor(muya: Muya) {
+    private _blankLinesBefore: number;
+
+    constructor(muya: Muya, state: IListItemState) {
         super(muya);
         this.tagName = 'li';
+        this._blankLinesBefore = state.meta?.blankLinesBefore ?? 0;
         this.classList = [CLASS_NAMES.MU_LIST_ITEM];
+        if (this._blankLinesBefore)
+            this.attributes.style = `margin-top: ${this._blankLinesBefore}lh`;
         this.createDomNode();
     }
 
     override getState(): IListItemState {
         const state: IListItemState = {
             name: 'list-item',
+            ...(this._blankLinesBefore
+                ? { meta: { blankLinesBefore: this._blankLinesBefore } }
+                : {}),
             children: this.children.map(child => child.getState()),
         };
 
