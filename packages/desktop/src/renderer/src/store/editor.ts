@@ -967,11 +967,18 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LISTEN_FOR_CLOSE_TAB(): void {
+      const closeTabOrWindow = (): void => {
+        if (this.tabs.length <= 1) {
+          window.electron.ipcRenderer.send('mt::cmd-close-window')
+        } else {
+          this.CLOSE_TAB()
+        }
+      }
       window.electron.ipcRenderer.on('mt::editor-close-tab', () => {
-        this.CLOSE_TAB()
+        closeTabOrWindow()
       })
       bus.on('mt::editor-close-tab', () => {
-        this.CLOSE_TAB()
+        closeTabOrWindow()
       })
     },
 

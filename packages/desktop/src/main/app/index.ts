@@ -770,6 +770,12 @@ class App {
       app.quit()
     })
 
+    ipcMain.on('mt::close-project-in-sidebar', (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const editor = win ? (this._windowManager.get(win.id) as EditorWindow | undefined) : undefined
+      editor?.closeFolder()
+    })
+
     ipcMain.on('mt::open-file-by-window-id', (_e, windowId: number, filePath: string) => {
       const resolvedPath = normalizeAndResolvePath(filePath)
       const openFilesInNewWindow = this._accessor.preferences.getItem<boolean>('openFilesInNewWindow')

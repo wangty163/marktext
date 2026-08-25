@@ -972,7 +972,13 @@ pre.mu-active.mu-fenced-code::after {
 
 /* Let columns follow their content while keeping empty cells easy to click (#4894). */
 .mu-table-cell-content {
+    position: relative;
+
     min-width: 2em;
+}
+
+.mu-table-inner tr td.mu-table-cell-selected > .mu-table-cell-content {
+    z-index: 2;
 }
 
 /* Footnote definition block — port of marktext's `figure[data-role='FOOTNOTE']`

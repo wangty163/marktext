@@ -83,6 +83,20 @@
         >{{
           projectTree.name
         }}</span>
+        <a
+          class="close-folder"
+          href="javascript:;"
+          :title="`${t('dialog.close')} ${projectTree.name}`"
+          :aria-label="`${t('dialog.close')} ${projectTree.name}`"
+          @click.stop="closeFolder"
+        >
+          <svg
+            class="icon"
+            aria-hidden="true"
+          >
+            <use xlink:href="#icon-close" />
+          </svg>
+        </a>
       </div>
       <div
         v-show="showDirectories"
@@ -208,6 +222,10 @@ const createCacheDirname = computed<string | undefined>(() => {
 // Methods
 const openFolder = (): void => {
   projectStore.ASK_FOR_OPEN_PROJECT()
+}
+
+const closeFolder = (): void => {
+  projectStore.CLOSE_PROJECT()
 }
 
 const saveAll = (isClose: boolean): void => {

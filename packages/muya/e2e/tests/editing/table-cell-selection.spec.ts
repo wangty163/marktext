@@ -68,6 +68,12 @@ test.describe('cross-cell table selection', () => {
             timeout: 5_000,
             intervals: [50, 100, 250, 500],
         }).toBe(4);
+
+        const stacking = await page.locator('.mu-table-cell-selected').first().evaluate((cell) => ({
+            overlay: Number(getComputedStyle(cell, '::before').zIndex),
+            text: Number(getComputedStyle(cell.firstElementChild!).zIndex),
+        }));
+        expect(stacking.text).toBeGreaterThan(stacking.overlay);
     });
 
     test('copy yields only the selected sub-rectangle as a GFM table', async ({ browserName, context, page }) => {

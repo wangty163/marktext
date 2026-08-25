@@ -146,6 +146,14 @@ export const useProjectStore = defineStore('project', () => {
     window.electron.ipcRenderer.on('mt::open-directory', (_e, pathname) => {
       OPEN_PROJECT(String(pathname))
     })
+    window.electron.ipcRenderer.on('mt::close-directory', () => {
+      projectTree.value = null
+      activeItem.value = {}
+      createCache.value = {}
+      renameCache.value = null
+      pendingTreeEvents.value = []
+      debouncedSendBufferedState()
+    })
   }
 
   function LISTEN_FOR_UPDATE_PROJECT(): void {
@@ -206,6 +214,10 @@ export const useProjectStore = defineStore('project', () => {
 
   function ASK_FOR_OPEN_PROJECT(): void {
     window.electron.ipcRenderer.send('mt::ask-for-open-project-in-sidebar')
+  }
+
+  function CLOSE_PROJECT(): void {
+    window.electron.ipcRenderer.send('mt::close-project-in-sidebar')
   }
 
   function LISTEN_FOR_SIDEBAR_CONTEXT_MENU(): void {
@@ -338,6 +350,7 @@ export const useProjectStore = defineStore('project', () => {
     CHANGE_ACTIVE_ITEM,
     CHANGE_CLIPBOARD,
     ASK_FOR_OPEN_PROJECT,
+    CLOSE_PROJECT,
     LISTEN_FOR_SIDEBAR_CONTEXT_MENU,
     CREATE_FILE_DIRECTORY,
     RENAME_IN_SIDEBAR,

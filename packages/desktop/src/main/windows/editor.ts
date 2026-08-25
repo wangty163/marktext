@@ -277,8 +277,8 @@ class EditorWindow extends BaseWindow {
 
     mainWindowState.manage(win)
 
-    // Disable application menu shortcuts because we want to handle key bindings ourself.
-    win.webContents.setIgnoreMenuShortcuts(true)
+    // macOS owns Command+W, so keep its native menu accelerator available.
+    win.webContents.setIgnoreMenuShortcuts(!isOsx)
 
     // Delay load files and directories after the current control flow.
     setTimeout(() => {
@@ -404,6 +404,18 @@ class EditorWindow extends BaseWindow {
     } else {
       this._directoryToOpen = pathname
     }
+  }
+
+  closeFolder(): void {
+    const { browserWindow } = this
+    if (this.lifecycle !== WindowLifecycle.READY || !browserWindow || !this._openedRootDirectory) {
+      return
+    }
+
+    ipcMain.emit('watcher-unwatch-directory', browserWindow, this._openedRootDirectory)
+    this._accessor.preferences.setItems({ lastOpenedFolder: '' })
+    this._openedRootDirectory = ''
+    browserWindow.webContents.send('mt::close-directory')
   }
 
   /**
