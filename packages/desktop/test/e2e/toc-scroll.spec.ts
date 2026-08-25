@@ -152,6 +152,38 @@ test.describe('TOC sidebar click scrolls the live editor', () => {
       .toBe(true)
   })
 
+  test('TOC highlight follows the latest jump, then clears itself', async() => {
+    const targetText = 'Heading Number 7'
+    const targetIndex = await headingIndexByText(page, targetText)
+    expect(targetIndex).toBeGreaterThanOrEqual(0)
+
+    const label = tocLabel(page, targetText)
+    await label.click()
+    await expect.poll(() => isHeadingInViewport(page, targetIndex), { timeout: 8000 }).toBe(true)
+
+    await expect
+      .poll(() => page.evaluate((idx) => {
+        const headings = document.querySelectorAll('.mu-container > h1, .mu-container > h2, .mu-container > h3, .mu-container > h4, .mu-container > h5, .mu-container > h6')
+        return Boolean(headings[idx]?.classList.contains('toc-flash-highlight'))
+      }, targetIndex))
+      .toBe(true)
+
+    // A new jump immediately replaces the old highlight instead of leaving
+    // multiple headings marked or letting the old timer clear the new one.
+    const nextIndex = await headingIndexByText(page, 'Heading Number 8')
+    expect(nextIndex).toBeGreaterThanOrEqual(0)
+    await tocLabel(page, 'Heading Number 8').click()
+    expect(await page.locator('.editor-component .toc-flash-highlight').count()).toBe(1)
+    expect(await page.evaluate((idx) => {
+      const headings = document.querySelectorAll('.mu-container > h1, .mu-container > h2, .mu-container > h3, .mu-container > h4, .mu-container > h5, .mu-container > h6')
+      return Boolean(headings[idx]?.classList.contains('toc-flash-highlight'))
+    }, nextIndex)).toBe(true)
+
+    await expect
+      .poll(() => page.locator('.editor-component .toc-flash-highlight').count(), { timeout: 4000 })
+      .toBe(0)
+  })
+
   test('clicking the same heading twice is idempotent (stays at that heading)', async() => {
     const targetText = 'Heading Number 12'
     const targetIndex = await headingIndexByText(page, targetText)

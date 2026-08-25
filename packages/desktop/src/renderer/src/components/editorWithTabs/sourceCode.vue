@@ -9,7 +9,7 @@
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
-import { findMarkdownHeadingLine, scrollSourceEditorToLine } from '@/util/sourceModeToc'
+import { findMarkdownHeadingLine, flashSourceLine, scrollSourceEditorToLine } from '@/util/sourceModeToc'
 import { storeToRefs } from 'pinia'
 import codeMirror, { setCursorAtFirstLine, setTextDirection } from '../../codeMirror'
 import { wordCount as getWordCount } from '@muyajs/core'
@@ -42,6 +42,12 @@ const editor = ref<CMInstance>(null)
 const commitTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const viewDestroyed = ref(false)
 const tabId = ref<string | null>(null)
+let clearTocHighlight: (() => void) | null = null
+
+const cancelTocHighlight = () => {
+  clearTocHighlight?.()
+  clearTocHighlight = null
+}
 
 const { theme, sourceCode } = storeToRefs(preferencesStore)
 const { currentFile: currentTab } = storeToRefs(editorStore)
@@ -118,6 +124,7 @@ interface FileChangePayloadLike {
 }
 
 const handleFileChange = (payload: unknown) => {
+  cancelTocHighlight()
   const { id, markdown: newMarkdown, muyaIndexCursor } = payload as FileChangePayloadLike
   if (!editor.value) return
 
@@ -311,6 +318,7 @@ const listenChange = () => {
 // `scroll-to-header` bus event (emitted when a TOC entry is clicked) must scroll
 // CodeMirror instead. Resolve the TOC entry to its heading line in the source.
 const handleScrollToHeader = (slug: unknown) => {
+  cancelTocHighlight()
   if (!editor.value) return
   const index = editorStore.listToc.findIndex(item => item.slug === slug)
   if (index < 0) return
@@ -319,6 +327,9 @@ const handleScrollToHeader = (slug: unknown) => {
   // `.source-code` is the scroll container (CodeMirror renders full-height with
   // viewportMargin: Infinity, so its own scroller never scrolls).
   scrollSourceEditorToLine(editor.value, line, sourceCodeContainer.value)
+  const gutterWidth = editor.value.getGutterElement().getBoundingClientRect().width
+  sourceCodeContainer.value?.style.setProperty('--toc-source-gutter-width', `${gutterWidth}px`)
+  clearTocHighlight = flashSourceLine(editor.value, line)
 }
 
 onMounted(() => {
@@ -395,6 +406,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   viewDestroyed.value = true
   if (commitTimer.value) clearTimeout(commitTimer.value)
+  cancelTocHighlight()
 
   bus.off('file-loaded', handleFileChange)
   bus.off('invalidate-image-cache', handleInvalidateImageCache)

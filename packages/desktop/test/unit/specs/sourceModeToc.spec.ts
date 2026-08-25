@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { findMarkdownHeadingLine, scrollSourceEditorToLine } from '@/util/sourceModeToc'
+import {
+  findMarkdownHeadingLine,
+  flashTocElement,
+  flashSourceLine,
+  scrollSourceEditorToLine
+} from '@/util/sourceModeToc'
 
 // marktext #3580: in Source Code mode, clicking a TOC entry must scroll the
 // CodeMirror editor to the heading's line. This resolves a TOC index to a line.
@@ -57,7 +62,12 @@ describe('scrollSourceEditorToLine', () => {
   const makeEditor = () => {
     const setCursor = vi.fn()
     const heightAtLine = vi.fn(() => 480)
-    const editor: SourceEditor = { setCursor, heightAtLine }
+    const editor: SourceEditor = {
+      setCursor,
+      heightAtLine,
+      addLineClass: vi.fn(),
+      removeLineClass: vi.fn()
+    }
     return { editor, setCursor, heightAtLine }
   }
 
@@ -81,5 +91,30 @@ describe('scrollSourceEditorToLine', () => {
     scrollSourceEditorToLine(editor, 5, null)
     expect(setCursor).toHaveBeenCalledWith({ line: 5, ch: 0 }, null, { scroll: false })
     expect(heightAtLine).not.toHaveBeenCalled()
+  })
+})
+
+describe('flashTocElement', () => {
+  it('adds the highlight and lets callers cancel it early', () => {
+    vi.useFakeTimers()
+    const el = document.createElement('h2')
+    const cancel = flashTocElement(el)
+    expect(el.classList.contains('toc-flash-highlight')).toBe(true)
+    cancel()
+    expect(el.classList.contains('toc-flash-highlight')).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+    vi.useRealTimers()
+  })
+})
+
+describe('flashSourceLine', () => {
+  it('adds then automatically removes the CodeMirror line class', () => {
+    vi.useFakeTimers()
+    const editor = { addLineClass: vi.fn(), removeLineClass: vi.fn() } as unknown as SourceEditor
+    flashSourceLine(editor, 3)
+    expect(editor.addLineClass).toHaveBeenCalledWith(3, 'background', 'toc-flash-highlight')
+    vi.advanceTimersByTime(1600)
+    expect(editor.removeLineClass).toHaveBeenCalledWith(3, 'background', 'toc-flash-highlight')
+    vi.useRealTimers()
   })
 })

@@ -125,6 +125,7 @@ import { moveImageToFolder, uploadImage } from '@/util/fileSystem'
 import { guessClipboardFilePath } from '@/util/clipboard'
 import { getCssForOptions, getHtmlToc, type PdfCssOptions, type HtmlTocOptions } from '@/util/pdf'
 import { resolveTocHeadingElement } from '@/util/tocNavigation'
+import { flashTocElement } from '@/util/sourceModeToc'
 import { addCommonStyle, setEditorWidth } from '@/util/theme'
 import { usePreferencesStore } from '@/store/preferences'
 import { useEditorStore } from '@/store/editor'
@@ -1229,6 +1230,13 @@ const scrollToHighlight = () => {
   return scrollToElement('.mu-highlight')
 }
 
+let clearTocHighlight: (() => void) | null = null
+
+const cancelTocHighlight = () => {
+  clearTocHighlight?.()
+  clearTocHighlight = null
+}
+
 /**
  * Scrolls the editor to the heading for a TOC entry. See
  * `resolveTocHeadingElement` for why the slug is resolved by document order
@@ -1236,9 +1244,13 @@ const scrollToHighlight = () => {
  * @param slug The TOC entry's slug from the `scroll-to-header` bus event.
  */
 const scrollToHeader = (slug: unknown) => {
+  cancelTocHighlight()
+  if (sourceCode.value) return
   const container = getScrollContainer()
   if (!container) return
-  scrollElementIntoView(resolveTocHeadingElement(container, editorStore.listToc, slug))
+  const heading = resolveTocHeadingElement(container, editorStore.listToc, slug)
+  scrollElementIntoView(heading)
+  if (heading) clearTocHighlight = flashTocElement(heading)
 }
 
 // Scrolls to a non-heading in-document anchor target (e.g. a custom
@@ -1456,6 +1468,7 @@ interface FileLoadedPayload {
 
 // listen for `open-single-file` event, it will call this method only when open a new file.
 const setMarkdownToEditor = (payload: unknown) => {
+  cancelTocHighlight()
   const { id, markdown: newMarkdown, cursor: newCursor } = (payload ?? {}) as FileLoadedPayload
   if (editor.value) {
     // `setContent` resets the document and clears the undo history; only set a
@@ -1501,6 +1514,7 @@ interface FileChangePayload {
 
 // listen for markdown change form source mode or change tabs etc
 const handleFileChange = (payload: unknown) => {
+  cancelTocHighlight()
   const {
     id,
     markdown: newMarkdown,
@@ -1974,6 +1988,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  cancelTocHighlight()
   bus.off('file-loaded', setMarkdownToEditor)
   bus.off('invalidate-image-cache', handleInvalidateImageCache)
   bus.off('undo', handleUndo)
@@ -2033,7 +2048,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style>
-/* ... existing style ... */
 .editor-wrapper {
   height: 100%;
   position: relative;

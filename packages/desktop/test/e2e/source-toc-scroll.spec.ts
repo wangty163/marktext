@@ -88,4 +88,29 @@ test.describe('Source Code mode: TOC click scrolls to the heading at the top', (
       .poll(() => headingLineTopInViewport(page, 'Heading Number 3'), { timeout: 8000 })
       .toBeLessThan(150)
   })
+
+  test('only the latest TOC target line is highlighted, then it clears', async() => {
+    const highlights = page.locator('.source-code .toc-flash-highlight')
+
+    await page.locator('.side-bar-toc').getByText('Heading Number 7', { exact: true }).click()
+    await expect.poll(() => highlights.count()).toBe(1)
+    const edges = await page.evaluate(() => {
+      const container = document.querySelector('.source-code .CodeMirror') as HTMLElement | null
+      const target = document.querySelector('.source-code .toc-flash-highlight') as HTMLElement | null
+      if (!container || !target) return null
+      const containerRect = container.getBoundingClientRect()
+      const targetRect = target.getBoundingClientRect()
+      return {
+        left: targetRect.left - containerRect.left - 50,
+        right: targetRect.right - containerRect.right + 50
+      }
+    })
+    expect(edges).not.toBeNull()
+    expect(Math.abs(edges?.left ?? Infinity)).toBeLessThanOrEqual(1)
+    expect(Math.abs(edges?.right ?? Infinity)).toBeLessThanOrEqual(1)
+
+    await page.locator('.side-bar-toc').getByText('Heading Number 8', { exact: true }).click()
+    expect(await highlights.count()).toBe(1)
+    await expect.poll(() => highlights.count(), { timeout: 4000 }).toBe(0)
+  })
 })

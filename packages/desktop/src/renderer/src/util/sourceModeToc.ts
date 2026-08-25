@@ -6,6 +6,31 @@ interface ISourceEditor {
     options?: { scroll?: boolean }
   ) => void
   heightAtLine: (line: number, mode: 'local' | 'page' | 'div') => number
+  addLineClass: (line: number, where: string, cls: string) => void
+  removeLineClass: (line: number, where: string, cls: string) => void
+}
+
+const TOC_HIGHLIGHT_CLASS = 'toc-flash-highlight'
+const TOC_HIGHLIGHT_DURATION = 1600
+
+const removeAfterDelay = (remove: () => void): (() => void) => {
+  const timer = setTimeout(remove, TOC_HIGHLIGHT_DURATION)
+  return () => {
+    clearTimeout(timer)
+    remove()
+  }
+}
+
+export function flashTocElement(el: Element): () => void {
+  el.classList.add(TOC_HIGHLIGHT_CLASS)
+  return removeAfterDelay(() => el.classList.remove(TOC_HIGHLIGHT_CLASS))
+}
+
+export function flashSourceLine(editor: ISourceEditor, line: number): () => void {
+  editor.addLineClass(line, 'background', TOC_HIGHLIGHT_CLASS)
+  return removeAfterDelay(() => {
+    editor.removeLineClass(line, 'background', TOC_HIGHLIGHT_CLASS)
+  })
 }
 
 /**

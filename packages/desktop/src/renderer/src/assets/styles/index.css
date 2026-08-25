@@ -428,3 +428,35 @@ button.button-primary:not(.custom):focus,
 .el-tabs__active-bar {
   background-color: var(--themeColor);
 }
+
+/* Brief, theme-matched feedback after jumping from the table of contents. */
+.toc-flash-highlight {
+  border-radius: 4px;
+  animation: toc-flash-highlight 1.6s ease-out forwards;
+}
+
+/* Match Muya's 50px content padding while accounting for CodeMirror's gutter. */
+.source-code .CodeMirror-linebackground.toc-flash-highlight {
+  left: calc(50px - var(--toc-source-gutter-width, 0px));
+  right: 50px;
+}
+
+@keyframes toc-flash-highlight {
+  0%,
+  60% {
+    background-color: var(--themeColor10);
+    box-shadow: -4px 0 var(--themeColor);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: -4px 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toc-flash-highlight {
+    animation: none;
+    background-color: var(--themeColor10);
+    box-shadow: -4px 0 var(--themeColor);
+  }
+}
