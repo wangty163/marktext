@@ -155,12 +155,18 @@ class TableCellContent extends Format {
                 ).firstContentInDescendant();
 
                 if (cursorBlock) {
-                    const cursorOffset = cursorBlock.text.length;
+                    const cursorOffset = this.getVerticalCursorOffset(
+                        cursorBlock,
+                        this.getCursor()!.start.offset,
+                    );
                     cursorBlock.setCursor(cursorOffset, cursorOffset, true);
                 }
             }
             else if (tablePrevContent) {
-                const cursorOffset = tablePrevContent.text.length;
+                const cursorOffset = this.getVerticalCursorOffset(
+                    tablePrevContent,
+                    this.getCursor()!.start.offset,
+                );
                 tablePrevContent.setCursor(cursorOffset, cursorOffset, true);
             }
         }
@@ -172,7 +178,13 @@ class TableCellContent extends Format {
                     nextRow.find(offset) as Cell
                 ).firstContentInDescendant();
 
-                cursorBlock?.setCursor(0, 0, true);
+                if (cursorBlock) {
+                    const cursorOffset = this.getVerticalCursorOffset(
+                        cursorBlock,
+                        this.getCursor()!.start.offset,
+                    );
+                    cursorBlock.setCursor(cursorOffset, cursorOffset, true);
+                }
             }
             else {
                 let cursorBlock = null;
@@ -193,7 +205,11 @@ class TableCellContent extends Format {
                     cursorBlock = newParagraphBlock.firstContentInDescendant();
                 }
 
-                cursorBlock.setCursor(0, 0, true);
+                const cursorOffset = this.getVerticalCursorOffset(
+                    cursorBlock,
+                    this.getCursor()!.start.offset,
+                );
+                cursorBlock.setCursor(cursorOffset, cursorOffset, true);
             }
         }
         else {

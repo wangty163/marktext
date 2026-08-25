@@ -10,13 +10,13 @@ import { fromEvent, merge } from 'rxjs';
 import { registerBlocks } from '../block';
 import { ScrollPage } from '../block/scrollPage';
 import Clipboard from '../clipboard';
-import { CLASS_NAMES, isFirefox } from '../config';
+import { CLASS_NAMES, EVENT_KEYS, isFirefox } from '../config';
 import History from '../history';
 import InlineRenderer from '../inlineRenderer';
 import { Search } from '../search';
 import Selection from '../selection';
 import JSONState from '../state';
-import { hasPick, isHTMLElement } from '../utils';
+import { hasPick, isHTMLElement, isKeyboardEvent } from '../utils';
 import { getBlock } from '../utils/dom';
 import logger from '../utils/logger';
 import { attachDragDropImageHandlers } from './dragDropImage';
@@ -243,6 +243,7 @@ export class Editor {
     clipboard: Clipboard;
     history: History;
     scrollPage: Nullable<ScrollPage> = null;
+    verticalCursorOffset: number | null = null;
 
     private _activeContentBlock: Nullable<Content> = null;
 
@@ -297,6 +298,17 @@ export class Editor {
         const { domNode } = this._muya;
 
         const eventHandler = (event: Event) => {
+            if (
+                event.type !== 'keyup'
+                && (
+                    !isKeyboardEvent(event)
+                    || ![EVENT_KEYS.ArrowUp, EVENT_KEYS.ArrowDown].includes(event.key)
+                    || event.shiftKey
+                )
+            ) {
+                this.verticalCursorOffset = null;
+            }
+
             const selectionResult = this.selection.getSelection();
             const anchorBlock = selectionResult?.anchor.block;
             const isSelectionInSameBlock = selectionResult?.isSelectionInSameBlock;

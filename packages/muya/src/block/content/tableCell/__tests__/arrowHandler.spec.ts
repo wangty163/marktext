@@ -11,8 +11,7 @@ import { Muya } from '../../../../muya';
 //     (same-column offset preservation is load-bearing).
 //   - ArrowDown from the last body row with no following block appends a
 //     trailing paragraph and lands the caret there at offset 0.
-//   - ArrowUp from a header cell with a preceding block jumps the caret to the
-//     END of that block's last content.
+//   - ArrowUp from a header cell with a preceding block keeps the caret column.
 // Each branch is driven through a real boot so cell-resolution and caret
 // placement run exactly as an Arrow keystroke would.
 
@@ -139,7 +138,7 @@ describe('tableCellContent arrow navigation', () => {
         expect(cursor!.start.offset).toBe(0);
     });
 
-    it('arrowUp from a header cell with a preceding paragraph jumps the caret to the END of that paragraph', async () => {
+    it('arrowUp from a header cell with a preceding paragraph keeps offset 0', async () => {
         // A paragraph `intro` precedes the table.
         const muya = bootMuya('intro\n\n| ab | cd |\n| --- | --- |\n| ef | gh |\n');
         const cells = tableCells(muya);
@@ -149,13 +148,13 @@ describe('tableCellContent arrow navigation', () => {
         arrowAtStart(muya, cells[0], 'ArrowUp');
         await flush();
 
-        // The caret moved to the END of the preceding paragraph (`intro`).
+        // The caret keeps offset 0 in the preceding paragraph (`intro`).
         const first = muya.editor.scrollPage!.firstContentInDescendant() as Content;
         expect(first.text).toBe('intro');
         const cursor = first.getCursor();
         expect(cursor).not.toBeNull();
-        expect(cursor!.start.offset).toBe('intro'.length);
-        expect(cursor!.end.offset).toBe('intro'.length);
+        expect(cursor!.start.offset).toBe(0);
+        expect(cursor!.end.offset).toBe(0);
     });
 
     it('arrowUp from a body cell lands the caret in the same column of the header row', async () => {
@@ -166,11 +165,11 @@ describe('tableCellContent arrow navigation', () => {
         arrowAtStart(muya, cells[3], 'ArrowUp');
         await flush();
 
-        // The caret moves to the END of the header cell of the SAME column (`cd`).
+        // The caret keeps offset 0 in the header cell of the SAME column (`cd`).
         const headerCol1 = cells[1];
         expect(headerCol1.text).toBe('cd');
         const cursor = headerCol1.getCursor();
         expect(cursor).not.toBeNull();
-        expect(cursor!.start.offset).toBe('cd'.length);
+        expect(cursor!.start.offset).toBe(0);
     });
 });

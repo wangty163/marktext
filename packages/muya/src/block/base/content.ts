@@ -451,6 +451,15 @@ class Content extends TreeNode {
             event.preventDefault();
     }
 
+    protected getVerticalCursorOffset(target: Content, offset: number): number {
+        const { editor } = this.muya;
+        editor.verticalCursorOffset ??= offset === this.text.length
+            ? Number.POSITIVE_INFINITY
+            : offset;
+
+        return Math.min(editor.verticalCursorOffset, target.text.length);
+    }
+
     arrowHandler(event: Event) {
         if (!isKeyboardEvent(event))
             return;
@@ -502,7 +511,9 @@ class Content extends TreeNode {
             }
 
             cursorBlock = previousContentBlock;
-            offset = previousContentBlock.text.length;
+            offset = event.key === EVENT_KEYS.ArrowUp
+                ? this.getVerticalCursorOffset(previousContentBlock, start.offset)
+                : previousContentBlock.text.length;
         }
         else if (
             event.key === EVENT_KEYS.ArrowDown
@@ -528,8 +539,15 @@ class Content extends TreeNode {
                 this.scrollPage?.append(newNode, 'user');
                 cursorBlock = newNode.children.head;
             }
-            if (cursorBlock)
-                offset = adjustOffset(0, cursorBlock, event);
+            if (cursorBlock) {
+                offset = adjustOffset(
+                    event.key === EVENT_KEYS.ArrowDown
+                        ? this.getVerticalCursorOffset(cursorBlock, start.offset)
+                        : 0,
+                    cursorBlock,
+                    event,
+                );
+            }
         }
 
         if (cursorBlock) {

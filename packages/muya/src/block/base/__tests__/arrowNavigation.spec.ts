@@ -103,19 +103,25 @@ function flush(): Promise<void> {
     return new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 }
 
+function pressVertical(content: Content, key: 'ArrowUp' | 'ArrowDown'): void {
+    const event = { key, bubbles: true };
+    content.domNode!.dispatchEvent(new KeyboardEvent('keydown', event));
+    content.domNode!.dispatchEvent(new KeyboardEvent('keyup', event));
+}
+
 describe('content arrowHandler — cross-block navigation up', () => {
-    it('arrowUp at offset 0 moves the caret to the END of the previous paragraph', async () => {
+    it('arrowUp keeps the cursor column in the previous paragraph', async () => {
         const muya = bootMuya('alpha\n\nbeta\n');
         const beta = contentByText(muya, 'beta');
 
-        const event = arrowAt(muya, beta, 'ArrowUp', 0);
+        const event = arrowAt(muya, beta, 'ArrowUp', 2);
         await flush();
 
         const alpha = contentByText(muya, 'alpha');
         const cursor = alpha.getCursor();
         expect(cursor).not.toBeNull();
-        expect(cursor!.start.offset).toBe('alpha'.length);
-        expect(cursor!.end.offset).toBe('alpha'.length);
+        expect(cursor!.start.offset).toBe(2);
+        expect(cursor!.end.offset).toBe(2);
         expect(event.preventDefault).toHaveBeenCalled();
         expect(event.stopPropagation).toHaveBeenCalled();
     });
@@ -200,7 +206,7 @@ describe('content arrowHandler — cross-block navigation up', () => {
 });
 
 describe('content arrowHandler — cross-block navigation down', () => {
-    it('arrowDown at end of a paragraph moves the caret to offset 0 of the next paragraph', async () => {
+    it('arrowDown from the end of a paragraph moves to the end of the next paragraph', async () => {
         const muya = bootMuya('alpha\n\nbeta\n');
         const alpha = contentByText(muya, 'alpha');
 
@@ -210,8 +216,8 @@ describe('content arrowHandler — cross-block navigation down', () => {
         const beta = contentByText(muya, 'beta');
         const cursor = beta.getCursor();
         expect(cursor).not.toBeNull();
-        expect(cursor!.start.offset).toBe(0);
-        expect(cursor!.end.offset).toBe(0);
+        expect(cursor!.start.offset).toBe('beta'.length);
+        expect(cursor!.end.offset).toBe('beta'.length);
         expect(event.preventDefault).toHaveBeenCalled();
         expect(event.stopPropagation).toHaveBeenCalled();
     });
@@ -243,6 +249,23 @@ describe('content arrowHandler — cross-block navigation down', () => {
         expect(beta.getCursor()).toBeNull();
         expect(event.preventDefault).not.toHaveBeenCalled();
         expect(event.stopPropagation).not.toHaveBeenCalled();
+    });
+
+    it('keeps the first cursor column after crossing a shorter paragraph', async () => {
+        const muya = bootMuya('abcdefgh-first\n\nxy\n\nabcdefgh-last\n');
+        const first = contentByText(muya, 'abcdefgh-first');
+        muya.editor.activeContentBlock = first;
+        first.setCursor(6, 6, true);
+
+        pressVertical(first, 'ArrowDown');
+        await flush();
+        const short = contentByText(muya, 'xy');
+        expect(short.getCursor()!.start.offset).toBe(2);
+
+        pressVertical(short, 'ArrowDown');
+        await flush();
+        const last = contentByText(muya, 'abcdefgh-last');
+        expect(last.getCursor()!.start.offset).toBe(6);
     });
 });
 
@@ -352,7 +375,7 @@ function allContentTexts(muya: Muya): string[] {
 }
 
 describe('content arrowHandler — skips empty sibling containers (#4644)', () => {
-    it('arrowUp at offset 0 skips an empty list item and lands at the END of the item above', async () => {
+    it('arrowUp at offset 0 skips an empty list item and keeps offset 0 above', async () => {
         const muya = bootMuyaState(listWithChildlessMiddleItem());
         // Precondition: the middle item holds NO content block, so a passing
         // caret assertion below can only mean the empty item was skipped.
@@ -365,13 +388,13 @@ describe('content arrowHandler — skips empty sibling containers (#4644)', () =
         const a = contentByText(muya, 'A');
         const cursor = a.getCursor();
         expect(cursor).not.toBeNull();
-        expect(cursor!.start.offset).toBe('A'.length);
-        expect(cursor!.end.offset).toBe('A'.length);
+        expect(cursor!.start.offset).toBe(0);
+        expect(cursor!.end.offset).toBe(0);
         expect(event.preventDefault).toHaveBeenCalled();
         expect(event.stopPropagation).toHaveBeenCalled();
     });
 
-    it('arrowDown at end of an item skips an empty list item and lands at offset 0 of the item below', async () => {
+    it('arrowDown at end of an item skips an empty list item and lands at the end below', async () => {
         const muya = bootMuyaState(listWithChildlessMiddleItem());
         expect(allContentTexts(muya)).toEqual(['A', 'B']);
 
@@ -382,8 +405,8 @@ describe('content arrowHandler — skips empty sibling containers (#4644)', () =
         const b = contentByText(muya, 'B');
         const cursor = b.getCursor();
         expect(cursor).not.toBeNull();
-        expect(cursor!.start.offset).toBe(0);
-        expect(cursor!.end.offset).toBe(0);
+        expect(cursor!.start.offset).toBe(1);
+        expect(cursor!.end.offset).toBe(1);
         expect(event.preventDefault).toHaveBeenCalled();
         expect(event.stopPropagation).toHaveBeenCalled();
     });

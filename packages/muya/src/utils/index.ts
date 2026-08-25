@@ -271,7 +271,7 @@ export function adjustOffset<T extends Content>(offset: number, block: T, event:
     ) {
         const match = /^\s{0,3}#{1,6}(?:\s+|$)/.exec(block.text);
         if (match)
-            return match[0].length;
+            return Math.max(offset, match[0].length);
     }
 
     return offset;
