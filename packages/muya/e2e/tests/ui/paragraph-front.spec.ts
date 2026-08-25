@@ -71,6 +71,17 @@ test.describe('paragraph front button + menu', () => {
             });
         }, { timeout: 3_000 }).toBe(true);
     });
+
+    test('front menu stays inside the viewport', async ({ page }) => {
+        await page.setViewportSize({ width: 480, height: 720 });
+        await page.evaluate(() => window.muya!.setContent('a paragraph'));
+        await openFrontMenu(page);
+
+        await expect.poll(() => page.locator(floats.paragraphFrontMenu).evaluate((element) => {
+            const { left, right } = element.getBoundingClientRect();
+            return left >= 0 && right <= window.innerWidth;
+        })).toBe(true);
+    });
 });
 
 test.describe('paragraph front menu — Turn Into', () => {
