@@ -192,18 +192,17 @@ describe('enter at end-of-text — appends an empty paragraph with the caret in 
 });
 
 describe('enter on an imported list gap', () => {
-    it('adds sibling blank lines without moving the caret into a list level', async () => {
-        const muya = bootMuya('- one\n\n- two\n');
-        const first = muya.editor.scrollPage!.firstContentInDescendant()!;
-        let gap = first.nextContentInContext()!;
+    it('uses the existing gap before adding sibling blank lines', async () => {
+        const muya = bootMuya('- one\n  - nested\n\n- two\n');
+        let content = contentByText(muya, 'nested');
 
-        for (let i = 0; i < 3; i++) {
-            enterAt(muya, gap, 0);
+        for (let i = 0; i < 4; i++) {
+            enterAt(muya, content, content.text.length);
             await flush();
-            gap = muya.editor.activeContentBlock!;
-            expect(gap.parent!.parent!.isScrollPage).toBe(true);
+            content = muya.editor.activeContentBlock!;
+            expect(content.parent!.parent!.isScrollPage).toBe(true);
         }
 
-        expect(muya.getMarkdown()).toBe('- one\n\n\n\n\n- two\n');
+        expect(muya.getMarkdown()).toBe('- one\n  - nested\n\n\n\n\n- two\n');
     });
 });

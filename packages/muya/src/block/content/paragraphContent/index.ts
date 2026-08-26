@@ -432,6 +432,19 @@ class ParagraphContent extends Format {
         const listItem = parent!.parent!;
         const list = listItem!.parent! as BulletList | OrderList | TaskList;
 
+        const nextContent = this.nextContentInContext();
+        if (
+            text.length !== 0
+            && start.offset === text.length
+            && end.offset === text.length
+            && nextContent?.blockName === 'paragraph.content'
+            && nextContent?.text.length === 0
+            && nextContent.parent?.parent?.isScrollPage
+        ) {
+            nextContent.setCursor(0, 0, true);
+            return;
+        }
+
         if (text.length === 0) {
             if (parent!.isOnlyChild()) {
                 switch (true) {
