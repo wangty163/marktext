@@ -626,7 +626,11 @@ class ParagraphContent extends Format {
         const { text: oldText } = previousContentBlock;
         const offset = oldText.length;
         previousContentBlock.text += this.text;
-        this.parent!.remove();
+        const paragraph = this.parent!;
+        const previousBlock = paragraph.prev;
+        const nextBlock = paragraph.next;
+        paragraph.remove();
+        this.mergeAdjacentLists(previousBlock, nextBlock);
         previousContentBlock.setCursor(offset, offset, true);
     }
 

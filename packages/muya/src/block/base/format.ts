@@ -1522,7 +1522,39 @@ class Format extends Content {
         ) {
             needRemovedBlock = needRemovedBlock.parent;
         }
+        const previousBlock = needRemovedBlock!.prev;
+        const nextBlockAfterRemoval = needRemovedBlock!.next;
         needRemovedBlock!.remove();
+        this.mergeAdjacentLists(previousBlock, nextBlockAfterRemoval);
+    }
+
+    protected mergeAdjacentLists(previous: Nullable<Parent>, next: Nullable<Parent>): void {
+        if (
+            !previous
+            || !next
+            || previous.blockName !== next.blockName
+            || !/^(?:bullet-list|order-list|task-list)$/.test(previous.blockName)
+        ) {
+            return;
+        }
+
+        const marker = previous.blockName === 'order-list' ? 'delimiter' : 'marker';
+        if (previous.datasets[marker] !== next.datasets[marker])
+            return;
+
+        const left = previous as Parent & { meta: { loose: boolean } };
+        const right = next as Parent & { meta: { loose: boolean } };
+        if (!left.meta.loose && right.meta.loose) {
+            const path = left.path;
+            path.pop();
+            path.push('meta', 'loose');
+            left.jsonState.replaceOperation(path, false, true);
+            left.meta.loose = true;
+            left.domNode?.classList.remove('mu-tight-list');
+        }
+
+        right.forEach(child => child.insertInto(left));
+        right.remove();
     }
 
     protected shiftEnterHandler(event: Event): void {

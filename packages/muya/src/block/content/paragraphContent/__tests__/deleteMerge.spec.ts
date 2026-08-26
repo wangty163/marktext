@@ -143,6 +143,9 @@ describe('deleting an imported list gap', () => {
 
         await flush();
         expect(muya.getMarkdown()).toBe(expected);
+        expect(muya.getState()).toHaveLength(1);
+        expect(muya.domNode.querySelectorAll('.mu-bullet-list, .mu-order-list, .mu-task-list'))
+            .toHaveLength(1);
     });
 
     it('also removes the source gap with forward Delete from the previous item', async () => {
@@ -152,6 +155,7 @@ describe('deleting an imported list gap', () => {
 
         await flush();
         expect(muya.getMarkdown()).toBe('- one\n- two\n');
+        expect(muya.getState()).toHaveLength(1);
     });
 });
 
