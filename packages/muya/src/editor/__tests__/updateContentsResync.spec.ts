@@ -35,7 +35,7 @@ function spState(muya: Muya) {
 
 describe('updateContents keeps the live tree in sync with jsonState when block construction throws', () => {
     it('does not leave the ScrollPage empty if a block fails to build during an undo apply', () => {
-        const muya = bootMuya('- foo\n\n- bar\n');
+        const muya = bootMuya('- foo\n- bar\n');
         const list = (muya.editor.scrollPage as unknown as { firstChild: { firstContentInDescendant: () => { setCursor: (a: number, b: number, c: boolean) => void } } }).firstChild;
         list.firstContentInDescendant().setCursor(0, 0, true);
 

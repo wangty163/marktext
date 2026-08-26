@@ -169,19 +169,22 @@ describe('parity PG1: selection-change block affiliation', () => {
     );
 
     it(
-        'PG1: imported list gaps do not loosen unrelated items',
+        'PG1: imported list gaps are selectable and editable paragraphs',
         () => {
-            // The exact gap is represented by an empty paragraph on the first item.
-            const muya = bootMuya('- one\n\n- two\n');
-            const leaf = muya.editor.scrollPage!.firstContentInDescendant()!;
-            const payload = emitSelectionFor(muya, leaf);
-            const affiliation = payload.affiliation as Array<{
-                type: string;
-                isLooseListItem?: boolean;
-            }>;
+            const muya = bootMuya('- one\n  - nested\n\n- two\n');
+            const first = muya.editor.scrollPage!.firstContentInDescendant()!;
+            const nested = first.nextContentInContext()!;
+            const leaf = nested.nextContentInContext()!;
+            expect(leaf.text).toBe('');
 
-            expect(affiliation.find(e => e.type === 'ul')?.isLooseListItem).toBe(false);
-            expect(affiliation.find(e => e.type === 'li')?.isLooseListItem).toBe(false);
+            const payload = emitSelectionFor(muya, leaf);
+            const affiliation = payload.affiliation as Array<{ type: string }>;
+
+            expect(affiliation.find(e => e.type === 'p')).toBeTruthy();
+            expect(affiliation.find(e => e.type === 'li')).toBeUndefined();
+            leaf.text = 'between';
+            muya.flush();
+            expect(muya.getMarkdown()).toBe('- one\n  - nested\n\nbetween\n\n- two\n');
         },
     );
 });

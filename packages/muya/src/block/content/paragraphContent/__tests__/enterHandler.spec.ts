@@ -190,3 +190,20 @@ describe('enter at end-of-text — appends an empty paragraph with the caret in 
         expect(cursor!.start.offset).toBe(0);
     });
 });
+
+describe('enter on an imported list gap', () => {
+    it('adds sibling blank lines without moving the caret into a list level', async () => {
+        const muya = bootMuya('- one\n\n- two\n');
+        const first = muya.editor.scrollPage!.firstContentInDescendant()!;
+        let gap = first.nextContentInContext()!;
+
+        for (let i = 0; i < 3; i++) {
+            enterAt(muya, gap, 0);
+            await flush();
+            gap = muya.editor.activeContentBlock!;
+            expect(gap.parent!.parent!.isScrollPage).toBe(true);
+        }
+
+        expect(muya.getMarkdown()).toBe('- one\n\n\n\n\n- two\n');
+    });
+});

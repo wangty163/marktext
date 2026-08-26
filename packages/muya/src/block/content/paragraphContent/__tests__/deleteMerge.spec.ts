@@ -130,6 +130,9 @@ describe('forward Delete merging a list item that owns a nested sublist (#1845)'
     function emptyFirstItemThenDelete(muya: Muya): void {
         const first = contentByText(muya, 'a');
         first.text = '';
+        // The first Delete removes the now-editable blank line; the second
+        // reaches the next list item and exercises the original merge path.
+        deleteAtEnd(muya, first);
         deleteAtEnd(muya, first);
     }
 

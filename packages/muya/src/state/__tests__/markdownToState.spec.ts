@@ -84,23 +84,25 @@ describe('markdownToState — task list nesting (marktext 23435ce6)', () => {
         expect(states[0].children![0].children![0]).toEqual({ name: 'paragraph', text: 'text' });
     });
 
-    it('keeps lazy continuation text on the final empty task marker in a task list', () => {
+    it('keeps lazy continuation text after an editable task-list gap', () => {
         const states = generate('- [ ] a\n\n- [ ] \n- [ ] \n- [ ] \ntext\n');
+        const firstList = states[0];
+        const secondList = states[2];
 
-        expect(states.length).toBe(1);
-        expect(states[0].name).toBe('task-list');
-        expect(states[0].children).toHaveLength(4);
-        expect(states[0].children!.map(c => c.name)).toEqual([
-            'task-list-item',
+        expect(states.length).toBe(3);
+        expect(firstList.name).toBe('task-list');
+        expect(states[1]).toEqual({ name: 'paragraph', text: '' });
+        expect(secondList.name).toBe('task-list');
+        expect(secondList.children).toHaveLength(3);
+        expect(secondList.children!.map(c => c.name)).toEqual([
             'task-list-item',
             'task-list-item',
             'task-list-item',
         ]);
-        expect(states[0].children!.map(c => c.meta?.checked)).toEqual([false, false, false, false]);
-        expect(states[0].children![0].children![0]).toEqual({ name: 'paragraph', text: 'a' });
-        expect(states[0].children![1].children).toEqual([{ name: 'paragraph', text: '' }]);
-        expect(states[0].children![2].children).toEqual([{ name: 'paragraph', text: '' }]);
-        expect(states[0].children![3].children![0]).toEqual({ name: 'paragraph', text: 'text' });
+        expect(firstList.children![0].children![0]).toEqual({ name: 'paragraph', text: 'a' });
+        expect(secondList.children![0].children).toEqual([{ name: 'paragraph', text: '' }]);
+        expect(secondList.children![1].children).toEqual([{ name: 'paragraph', text: '' }]);
+        expect(secondList.children![2].children![0]).toEqual({ name: 'paragraph', text: 'text' });
     });
 
     it('does not treat `- []` as an empty task item', () => {

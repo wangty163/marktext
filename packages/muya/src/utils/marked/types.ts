@@ -16,7 +16,6 @@ export type Heading = Tokens.Heading & {
 export type ListItemToken = Tokens.ListItem & {
     listItemType: 'order' | 'bullet' | 'task';
     bulletMarkerOrDelimiter: '.' | ')' | '*' | '+' | '-' | '';
-    blankLinesBefore?: number;
 };
 
 export type ListToken = Tokens.List & {

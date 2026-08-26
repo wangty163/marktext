@@ -29,13 +29,27 @@ describe('blank-line fidelity', () => {
         expect(serialize(states)).toBe(markdown);
     });
 
-    it('round-trips the exact blank-line count between selected list items', () => {
+    it('round-trips each list gap as editable sibling paragraphs', () => {
         const markdown = '- a\n- b\n\n- c\n\n\n\n- d\n';
         const states = parse(markdown);
-        const list = states[0] as IBulletListState;
 
-        expect(list.children.map(item => item.meta?.blankLinesBefore ?? 0))
-            .toEqual([0, 0, 1, 3]);
+        expect(states.map(state => state.name)).toEqual([
+            'bullet-list',
+            'paragraph',
+            'bullet-list',
+            'paragraph',
+            'paragraph',
+            'paragraph',
+            'bullet-list',
+        ]);
+        expect(serialize(states)).toBe(markdown);
+    });
+
+    it('keeps a list gap editable after a nested list', () => {
+        const markdown = '- a\n  - nested\n\n- b\n';
+        const states = parse(markdown);
+
+        expect(states[1]).toEqual({ name: 'paragraph', text: '' });
         expect(serialize(states)).toBe(markdown);
     });
 

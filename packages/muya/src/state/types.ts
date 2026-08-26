@@ -63,9 +63,6 @@ export interface IBlockQuoteState {
 
 export interface IListItemState {
     name: 'list-item';
-    meta?: {
-        blankLinesBefore?: number;
-    };
     children: TState[];
 }
 
@@ -110,7 +107,6 @@ export interface ITableState {
 
 export interface ITaskListItemMeta {
     checked: boolean;
-    blankLinesBefore?: number;
 }
 
 export interface ITaskListItemState {

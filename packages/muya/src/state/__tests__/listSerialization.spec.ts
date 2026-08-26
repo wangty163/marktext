@@ -544,7 +544,7 @@ describe('stateToMarkdown — list looseness (preferLooseListItem)', () => {
         const list = looseStates[0] as IBulletListState;
         expect(list.name).toBe('bullet-list');
         expect(list.meta.loose).toBe(false);
-        expect(list.children[1].meta?.blankLinesBefore).toBe(1);
+        expect(looseStates[1]).toEqual({ name: 'paragraph', text: '' });
 
         const tightStates = new MarkdownToState({
             footnote: false,

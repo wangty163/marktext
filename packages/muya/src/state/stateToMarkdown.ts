@@ -272,16 +272,11 @@ export default class ExportMarkdown {
         listIndent: string,
     ) {
         const { loose } = this._listType[this._listType.length - 1];
-        const blankLinesBefore = state.meta?.blankLinesBefore ?? 0;
 
         // helper variable to correct the first tight item in a nested list
         this._isLooseParentList = loose;
-        if (blankLinesBefore) {
-            result.push(`${indent.replace(/ +$/, '')}\n`.repeat(blankLinesBefore));
-        }
-        else if (loose) {
+        if (loose)
             this._insertLineBreak(result, indent);
-        }
 
         result.push(this._serializeListItem(state, indent + listIndent));
         this._isLooseParentList = true;

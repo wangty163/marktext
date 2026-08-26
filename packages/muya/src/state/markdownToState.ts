@@ -1,4 +1,4 @@
-import type { ListItemToken, TBlockToken, TLexedToken } from '../utils/marked/types';
+import type { ListItemToken, ListToken, TBlockToken, TLexedToken } from '../utils/marked/types';
 import type {
     IAtxHeadingState,
     IBulletListState,
@@ -105,41 +105,61 @@ export class MarkdownToState {
             }
             else {
                 if (token.type === 'list') {
-                    // Preserve each source gap on its following item. Keeping
-                    // marked's list-wide `loose` flag would spread one gap to
-                    // every item when the document is next serialized.
-                    token.loose = false;
-                    const items = token.items as ListItemToken[];
-                    for (const [index, item] of items.entries()) {
-                        if (index > 0) {
-                            const previousRaw = items[index - 1].raw;
-                            const trailing = previousRaw.match(/(?:\r?\n[\t ]*)+$/)?.[0] ?? '';
-                            item.blankLinesBefore = Math.max(
-                                0,
-                                (trailing.match(/\n/g)?.length ?? 0) - 1,
-                            );
-                        }
-                        const childTokens = [...item.tokens] as TLexedToken[];
-                        while (childTokens.at(-1)?.type === 'space')
-                            childTokens.pop();
-                        item.tokens = this._preserveBlankLines(
-                            childTokens,
-                            true,
-                        ) as ListItemToken['tokens'];
-                    }
+                    result.push(...this._splitListAtBlankLines(token));
                 }
                 else if (token.type === 'blockquote' || token.type === 'footnote') {
                     token.tokens = this._preserveBlankLines(
                         token.tokens as TLexedToken[],
                         preserveSpaces,
                     ) as typeof token.tokens;
+                    result.push(token);
                 }
-                result.push(token);
+                else {
+                    result.push(token);
+                }
             }
 
             previousRaw = token.raw;
         }
 
+        return result;
+    }
+
+    private _splitListAtBlankLines(token: ListToken): TLexedToken[] {
+        const result: TLexedToken[] = [];
+        const sourceItems = token.items as ListItemToken[];
+        let items: ListItemToken[] = [];
+
+        for (const [index, item] of sourceItems.entries()) {
+            const childTokens = [...item.tokens] as TLexedToken[];
+            while (childTokens.at(-1)?.type === 'space')
+                childTokens.pop();
+            item.tokens = this._preserveBlankLines(childTokens, true) as ListItemToken['tokens'];
+            items.push(item);
+
+            const trailing = item.raw.match(/(?:\r?\n[\t ]*)+$/)?.[0] ?? '';
+            const blankLines = index < sourceItems.length - 1
+                ? Math.max(0, (trailing.match(/\n/g)?.length ?? 0) - 1)
+                : 0;
+            if (!blankLines)
+                continue;
+
+            result.push(this._listToken(token, items), ...this._blankLineTokens(blankLines));
+            items = [];
+        }
+
+        if (items.length)
+            result.push(this._listToken(token, items));
+
+        return result;
+    }
+
+    private _listToken(token: ListToken, items: ListItemToken[]): ListToken {
+        const result = { ...token, loose: false, items };
+        if (token.listType === 'order') {
+            const start = /^\s*(\d+)[.)]/.exec(items[0].raw)?.[1];
+            result.start = start ? Number(start) : token.start;
+        }
         return result;
     }
 
@@ -237,21 +257,13 @@ export class MarkdownToState {
                 if (listItemType === 'task') {
                     itemState = {
                         name: 'task-list-item',
-                        meta: {
-                            checked: Boolean(checked),
-                            ...(token.blankLinesBefore
-                                ? { blankLinesBefore: token.blankLinesBefore }
-                                : {}),
-                        },
+                        meta: { checked: Boolean(checked) },
                         children: [],
                     };
                 }
                 else {
                     itemState = {
                         name: 'list-item',
-                        ...(token.blankLinesBefore
-                            ? { meta: { blankLinesBefore: token.blankLinesBefore } }
-                            : {}),
                         children: [],
                     };
                 }
