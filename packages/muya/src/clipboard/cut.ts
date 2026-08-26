@@ -3,13 +3,250 @@ import type Parent from '../block/base/parent';
 import type TreeNode from '../block/base/treeNode';
 import type Table from '../block/gfm/table';
 import type TableBodyCell from '../block/gfm/table/cell';
+import type { ISelection } from '../selection/types';
+import type { TState } from '../state/types';
 import type { Nullable } from '../types';
+import type { IClipboardPayload } from './copyData';
 import type Clipboard from './index';
 import Format from '../block/base/format';
 import { ScrollPage } from '../block/scrollPage';
 import { CLASS_NAMES } from '../config';
-import { SelectionDirection, SelectionType } from '../selection/types';
+import { SelectionCaretType, SelectionDirection, SelectionType } from '../selection/types';
+import { deepClone } from '../utils';
 import { getBlock } from '../utils/dom';
+import { getSelectionClipboardData } from './copyData';
+
+export type TLineCopy
+    = | {
+        kind: 'block';
+        text: string;
+        state: TState;
+        sourceParentName: string;
+        cursorIndex: number;
+        cursorOffset: number;
+        pasteAfter: boolean;
+    }
+    | {
+        kind: 'text';
+        text: string;
+        sourceBlockName: string;
+        cursorColumn: number;
+        pasteAfter: boolean;
+    };
+
+export interface ICollapsedLineClipboard {
+    copy: TLineCopy;
+    payload: IClipboardPayload;
+    cut: () => void;
+}
+
+function selectionRange(
+    anchorBlock: Content,
+    anchorOffset: number,
+    focusBlock: Content,
+    focusOffset: number,
+): ISelection {
+    const isSelectionInSameBlock = anchorBlock === focusBlock;
+
+    return {
+        anchor: { offset: anchorOffset, block: anchorBlock, path: anchorBlock.path },
+        focus: { offset: focusOffset, block: focusBlock, path: focusBlock.path },
+        isCollapsed: false,
+        isSelectionInSameBlock,
+        direction: SelectionDirection.FORWARD,
+        type: SelectionCaretType.RANGE,
+    };
+}
+
+function contentDescendants(block: Parent): Content[] {
+    const contents: Content[] = [];
+    let content: Nullable<Content> = block.firstContentInDescendant();
+    while (content && content.isInBlock(block)) {
+        contents.push(content);
+        content = content.nextContentInContext();
+    }
+
+    return contents;
+}
+
+function structuralLineBlock(content: Content): Nullable<Parent> {
+    let parent = content.parent;
+    while (parent && !parent.isScrollPage) {
+        if (parent.blockName === 'list-item' || parent.blockName === 'task-list-item')
+            return parent;
+        parent = parent.parent;
+    }
+
+    return content.parent;
+}
+
+function isTextLine(content: Content): boolean {
+    let parent = content.parent;
+    while (parent && !parent.isScrollPage) {
+        if (/code-block|html-block|math-block|frontmatter|diagram/.test(parent.blockName))
+            return true;
+        parent = parent.parent;
+    }
+
+    return content.text.includes('\n');
+}
+
+function removeStructuralLine(clipboard: Clipboard, block: Parent): boolean {
+    const next = block.lastContentInDescendant()?.nextContentInContext();
+    const previous = block.firstContentInDescendant()?.previousContentInContext();
+    let parent = block.parent;
+
+    block.remove();
+    while (parent && !parent.isScrollPage && parent.length() === 0) {
+        const empty = parent;
+        parent = parent.parent;
+        empty.remove();
+    }
+
+    if (clipboard.scrollPage?.length() === 0) {
+        resetToEmptyParagraph(clipboard);
+        return false;
+    }
+
+    const cursor = next?.parent ? next : previous?.parent ? previous : null;
+    cursor?.domNode?.focus();
+    cursor?.setCursor(0, 0, true);
+
+    return next == null && previous != null;
+}
+
+function textLineClipboard(
+    content: Content,
+    offset: number,
+): ICollapsedLineClipboard {
+    const text = content.text;
+    const cursorOffset = Math.min(Math.max(offset, 0), text.length);
+    const start = text.lastIndexOf('\n', cursorOffset - 1) + 1;
+    const nextBreak = text.indexOf('\n', cursorOffset);
+    const copyEnd = nextBreak < 0 ? text.length : nextBreak + 1;
+    const deleteStart = nextBreak < 0 && start > 0 ? start - 1 : start;
+    const copiedText = text.substring(start, copyEnd) || (deleteStart < start ? '\n' : '');
+
+    const copy: TLineCopy = {
+        kind: 'text',
+        text: copiedText,
+        sourceBlockName: content.blockName,
+        cursorColumn: cursorOffset - start,
+        pasteAfter: false,
+    };
+
+    return {
+        payload: { html: '', text: copiedText },
+        copy,
+        cut: () => {
+            copy.pasteAfter = nextBreak < 0 && start > 0;
+            content.text = text.substring(0, deleteStart) + text.substring(copyEnd);
+            setCursorAndConvert(content, deleteStart);
+        },
+    };
+}
+
+export function collapsedLineClipboard(
+    clipboard: Clipboard,
+): Nullable<ICollapsedLineClipboard> {
+    if (clipboard.selection.image || clipboard.selection.table.hasSelection)
+        return null;
+
+    const selection = clipboard.selection.getSelection();
+    if (selection == null || !selection.isCollapsed)
+        return null;
+
+    const { block, offset } = selection.anchor;
+    if (
+        block.blockName === 'language-input'
+        || block.closestBlock('table')
+    ) {
+        return null;
+    }
+
+    if (isTextLine(block))
+        return textLineClipboard(block, offset);
+
+    const lineBlock = structuralLineBlock(block);
+    if (lineBlock == null || lineBlock.parent == null)
+        return null;
+
+    const contents = contentDescendants(lineBlock);
+    const first = contents[0];
+    const last = contents[contents.length - 1];
+    if (!first || !last)
+        return null;
+
+    const lineSelection = selectionRange(first, 0, last, last.text.length);
+    const payload = getSelectionClipboardData(clipboard, lineSelection, true);
+
+    const copy: TLineCopy = {
+        kind: 'block',
+        text: payload.text,
+        state: deepClone(lineBlock.getState()),
+        sourceParentName: lineBlock.parent.blockName,
+        cursorIndex: Math.max(contents.indexOf(block), 0),
+        cursorOffset: offset,
+        pasteAfter: false,
+    };
+
+    return {
+        payload,
+        copy,
+        cut: () => {
+            copy.pasteAfter = removeStructuralLine(clipboard, lineBlock);
+        },
+    };
+}
+
+export function pasteCopiedLine(clipboard: Clipboard, copy: TLineCopy): boolean {
+    if (clipboard.selection.image || clipboard.selection.table.hasSelection)
+        return false;
+
+    const selection = clipboard.selection.getSelection();
+    if (selection == null || !selection.isCollapsed)
+        return false;
+
+    const { block, offset } = selection.anchor;
+    if (copy.kind === 'text') {
+        if (block.blockName !== copy.sourceBlockName)
+            return false;
+
+        const lineStart = block.text.lastIndexOf('\n', offset - 1) + 1;
+        const nextBreak = block.text.indexOf('\n', offset);
+        const start = copy.pasteAfter
+            ? nextBreak < 0 ? block.text.length : nextBreak + 1
+            : lineStart;
+        const text = copy.text.endsWith('\n') ? copy.text : `${copy.text}\n`;
+        block.text = block.text.substring(0, start) + text + block.text.substring(start);
+        setCursorAndConvert(block, start + Math.min(copy.cursorColumn, text.length - 1));
+
+        return true;
+    }
+
+    const target = structuralLineBlock(block);
+    if (target?.parent == null || target.parent.blockName !== copy.sourceParentName)
+        return false;
+
+    const pasted = ScrollPage.loadBlock(copy.state.name).create(
+        clipboard.muya,
+        deepClone(copy.state),
+    );
+    if (copy.pasteAfter)
+        target.parent.insertAfter(pasted, target);
+    else
+        target.parent.insertBefore(pasted, target);
+    const contents = contentDescendants(pasted);
+    const cursor = contents[Math.min(copy.cursorIndex, contents.length - 1)];
+    cursor?.domNode?.focus();
+    cursor?.setCursor(
+        Math.min(copy.cursorOffset, cursor.text.length),
+        Math.min(copy.cursorOffset, cursor.text.length),
+        true,
+    );
+
+    return true;
+}
 
 /**
  * Whole-document selection predicate: the selection spans from the very first
@@ -53,6 +290,7 @@ function resetToEmptyParagraph(clipboard: Clipboard): void {
     scrollPage.append(newParagraphBlock, 'user');
 
     const cursorBlock = newParagraphBlock.firstContentInDescendant();
+    cursorBlock?.domNode?.focus();
     cursorBlock?.setCursor(0, 0, true);
 }
 

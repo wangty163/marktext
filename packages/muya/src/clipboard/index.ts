@@ -1,9 +1,15 @@
 import type { Muya } from '../muya';
 import type { IClipboardPayload } from './copyData';
+import type { TLineCopy } from './cut';
 import Format from '../block/base/format';
 import { isClipboardEvent, isKeyboardEvent } from '../utils';
 import { getClipboardData, writeClipboardData } from './copyData';
-import { cutSelection, deleteTableSelection } from './cut';
+import {
+    collapsedLineClipboard,
+    cutSelection,
+    deleteTableSelection,
+    pasteCopiedLine,
+} from './cut';
 import { pastePlainText, pasteSelection } from './paste';
 import { pasteImageSrc } from './pasteImage';
 import { CopyType, PasteType } from './types';
@@ -27,6 +33,7 @@ class Clipboard {
     public copyType: CopyType = CopyType.NORMAL;
     public pasteType: PasteType = PasteType.NORMAL;
     public copyInfo: string = '';
+    private _lineCopy: TLineCopy | null = null;
 
     get selection() {
         return this.muya.editor.selection;
@@ -55,6 +62,19 @@ class Clipboard {
             event.stopPropagation();
 
             const isCut = event.type === 'cut';
+
+            const line = this.copyType === CopyType.NORMAL
+                ? collapsedLineClipboard(this)
+                : null;
+            if (line) {
+                this._lineCopy = line.copy;
+                this.copyHandler(event, line.payload);
+                if (isCut)
+                    line.cut();
+                return;
+            }
+
+            this._lineCopy = null;
 
             this.copyHandler(event);
 
@@ -116,8 +136,8 @@ class Clipboard {
         return getClipboardData(this);
     }
 
-    copyHandler(event: ClipboardEvent): void {
-        writeClipboardData(this, event);
+    copyHandler(event: ClipboardEvent, payload?: IClipboardPayload): void {
+        writeClipboardData(this, event, payload);
     }
 
     cutHandler(): void {
@@ -129,7 +149,18 @@ class Clipboard {
         rawText?: string,
         rawHtml?: string,
     ): Promise<void> {
-        return pasteSelection(this, event, rawText, rawHtml);
+        const text = rawText ?? event.clipboardData?.getData('text/plain') ?? '';
+        if (
+            this._lineCopy
+            && text.replace(/\r\n?/g, '\n') === this._lineCopy.text
+            && pasteCopiedLine(this, this._lineCopy)
+        ) {
+            event.preventDefault();
+            event.stopPropagation();
+            return Promise.resolve();
+        }
+
+        return pasteSelection(this, event, text, rawHtml);
     }
 
     copyAsMarkdown() {

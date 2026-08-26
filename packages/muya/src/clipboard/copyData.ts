@@ -330,24 +330,11 @@ function collectCopyState(order: ICopyOrder): TState[] {
     return copyState;
 }
 
-export function getClipboardData(clipboard: Clipboard): IClipboardPayload {
-    const { copyType, copyInfo } = clipboard;
-    if (copyType === CopyType.COPY_CODE_CONTENT) {
-        return {
-            html: '',
-            text: copyInfo,
-        };
-    }
-
-    // A frozen cross-cell table selection copies just that rectangle.
-    const tableData = getTableSelectionClipboardData(clipboard);
-    if (tableData != null)
-        return tableData;
-
-    const selection = clipboard.selection.getSelection();
-    if (selection == null)
-        return { html: '', text: '' };
-
+export function getSelectionClipboardData(
+    clipboard: Clipboard,
+    selection: ISelection,
+    preserveBlockStructure = false,
+): IClipboardPayload {
     const { isSelectionInSameBlock, anchor, focus } = selection;
     const anchorBlock = anchor.block;
     const focusBlock = focus.block;
@@ -358,7 +345,7 @@ export function getClipboardData(clipboard: Clipboard): IClipboardPayload {
     const options = buildHtmlOptions(clipboard.muya.options);
 
     // Handler copy/cut in one block.
-    if (isSelectionInSameBlock) {
+    if (isSelectionInSameBlock && !preserveBlockStructure) {
         const begin = Math.min(anchor.offset, focus.offset);
         const end = Math.max(anchor.offset, focus.offset);
 
@@ -380,9 +367,31 @@ export function getClipboardData(clipboard: Clipboard): IClipboardPayload {
     return { html, text };
 }
 
+export function getClipboardData(clipboard: Clipboard): IClipboardPayload {
+    const { copyType, copyInfo } = clipboard;
+    if (copyType === CopyType.COPY_CODE_CONTENT) {
+        return {
+            html: '',
+            text: copyInfo,
+        };
+    }
+
+    // A frozen cross-cell table selection copies just that rectangle.
+    const tableData = getTableSelectionClipboardData(clipboard);
+    if (tableData != null)
+        return tableData;
+
+    const selection = clipboard.selection.getSelection();
+    if (selection == null)
+        return { html: '', text: '' };
+
+    return getSelectionClipboardData(clipboard, selection);
+}
+
 export function writeClipboardData(
     clipboard: Clipboard,
     event: ClipboardEvent,
+    payload?: IClipboardPayload,
 ): void {
     if (!event.clipboardData)
         return;
@@ -401,7 +410,7 @@ export function writeClipboardData(
 
     const { copyType } = clipboard;
 
-    const { html, text } = clipboard.getClipboardData();
+    const { html, text } = payload ?? clipboard.getClipboardData();
 
     // Mirror native copy behavior: leave the system clipboard untouched
     // when the selection has nothing to contribute, so a previous copy
