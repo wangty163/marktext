@@ -28,6 +28,16 @@ Root `.editorconfig`, Prettier, and ESLint enforce UTF-8, LF endings, two-space 
 
 Name tests `*.spec.ts`. Add a focused regression test for behavior changes; there is no repository-wide numeric coverage target. Use Vitest for unit logic and Playwright for real Electron, selection, clipboard, or UI flows. Keep Muya tests beside the affected source; use `test/spec/` for CommonMark or GFM behavior.
 
+For list Enter and blank-line regressions, start from a nonempty list item and invoke the
+production Enter handler once per simulated keypress. Assert every intermediate indentation
+level and the final Markdown; do not prebuild the transient empty item or jump the selection to
+the expected gap, because that bypasses the empty-item unindent path. Cover bullet, ordered, and
+task lists when the shared list path changes.
+
+For installed-app save and round-trip QA, use a disposable Markdown file, send real keypresses,
+and poll the on-disk content until it matches or times out. Verify the editor tree and the file;
+a UI-only assertion does not prove that an inserted or deleted blank line was persisted.
+
 ## Commit & Pull Request Guidelines
 
 Follow the history's Conventional Commit style: `fix(desktop): preserve RTL text direction`, `fix(muya): ...`, or `docs: ...`. Keep commits scoped and avoid drive-by cleanup. Open PRs against `develop`, link the issue (`Closes #123`), explain the problem and solution, include a test plan, and attach screenshots or recordings for visible changes. Run relevant tests, `pnpm check`, and CI before requesting review.
