@@ -1494,7 +1494,12 @@ class Format extends Content {
         // with the merged text. Left behind they become the sole child of the
         // now-empty item and serialize with a doubled bullet (#1845).
         const paragraph = this.parent;
-        if (paragraph && paragraphBlock.parent !== paragraph.parent) {
+        if (
+            paragraph
+            && paragraphBlock.parent !== paragraph.parent
+            && (paragraphBlock.parent?.blockName === 'list-item'
+                || paragraphBlock.parent?.blockName === 'task-list-item')
+        ) {
             const trailing: TreeNode[] = [];
             let sibling = paragraphBlock.next;
             while (sibling) {

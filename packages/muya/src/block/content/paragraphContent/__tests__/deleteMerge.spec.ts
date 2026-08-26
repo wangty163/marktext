@@ -76,6 +76,16 @@ function deleteAtEnd(muya: Muya, content: Content): { preventDefault: ReturnType
     return event;
 }
 
+function backspaceAtStart(muya: Muya, content: Content): void {
+    muya.editor.activeContentBlock = content;
+    content.setCursor(0, 0, true);
+    content.backspaceHandler({
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+        key: 'Backspace',
+    } as unknown as KeyboardEvent);
+}
+
 function flush(): Promise<void> {
     return new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 }
@@ -118,6 +128,30 @@ describe('forward Delete at end-of-paragraph — merge with next block', () => {
         const cursor = merged.getCursor();
         expect(cursor).not.toBeNull();
         expect(cursor!.start.offset).toBe(5);
+    });
+});
+
+describe('deleting an imported list gap', () => {
+    it.each([
+        ['- one\n\n- two\n', '- one\n- two\n'],
+        ['1. one\n\n2. two\n', '1. one\n2. two\n'],
+        ['- [ ] one\n\n- [ ] two\n', '- [ ] one\n- [ ] two\n'],
+    ])('removes the source gap in %j', async (markdown, expected) => {
+        const muya = bootMuya(markdown);
+
+        backspaceAtStart(muya, contentByText(muya, ''));
+
+        await flush();
+        expect(muya.getMarkdown()).toBe(expected);
+    });
+
+    it('also removes the source gap with forward Delete from the previous item', async () => {
+        const muya = bootMuya('- one\n\n- two\n');
+
+        deleteAtEnd(muya, contentByText(muya, 'one'));
+
+        await flush();
+        expect(muya.getMarkdown()).toBe('- one\n- two\n');
     });
 });
 

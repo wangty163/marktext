@@ -192,29 +192,26 @@ describe('enter at end-of-text — appends an empty paragraph with the caret in 
 });
 
 describe('enter on an imported list gap', () => {
-    it('exits a nested list into the existing gap on the second Enter', async () => {
-        const muya = bootMuya('- one\n  - nested\n\n- two\n');
-        let content = contentByText(muya, 'nested');
+    it('creates a sibling item, then unindents once per Enter before using the gap', async () => {
+        const muya = bootMuya('- outer\n  - middle\n    - inner\n\n- next\n');
+        let content = contentByText(muya, 'inner');
+        const depths = [];
 
-        enterAt(muya, content, content.text.length);
-        await flush();
-        content = muya.editor.activeContentBlock!;
-        expect(content.text).toBe('');
-        expect(content.parent!.parent!.isScrollPage).toBe(false);
-
-        enterAt(muya, content, 0);
-        await flush();
-        content = muya.editor.activeContentBlock!;
-        expect(content.parent!.parent!.isScrollPage).toBe(true);
-        expect(muya.getMarkdown()).toBe('- one\n  - nested\n\n- two\n');
-
-        for (let i = 0; i < 2; i++) {
-            enterAt(muya, content, 0);
+        for (let i = 0; i < 4; i++) {
+            enterAt(muya, content, content.text.length);
             await flush();
             content = muya.editor.activeContentBlock!;
-            expect(content.parent!.parent!.isScrollPage).toBe(true);
+            let parent = content.parent;
+            let depth = 0;
+            while (parent && !parent.isScrollPage) {
+                if (parent.blockName === 'list-item' || parent.blockName === 'task-list-item')
+                    depth++;
+                parent = parent.parent;
+            }
+            depths.push(depth);
         }
 
-        expect(muya.getMarkdown()).toBe('- one\n  - nested\n\n\n\n- two\n');
+        expect(depths).toEqual([3, 2, 1, 0]);
+        expect(muya.getMarkdown()).toBe('- outer\n  - middle\n    - inner\n\n- next\n');
     });
 });

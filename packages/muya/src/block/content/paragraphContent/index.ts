@@ -434,6 +434,12 @@ class ParagraphContent extends Format {
 
         if (text.length === 0) {
             if (parent!.isOnlyChild()) {
+                const unindentType = this._getUnindentType();
+                if (unindentType != null) {
+                    this._unindentListItem(unindentType);
+                    return;
+                }
+
                 const nextContent = this.nextContentInContext();
                 if (
                     !listItem.isOnlyChild()

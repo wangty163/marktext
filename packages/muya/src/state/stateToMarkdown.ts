@@ -232,11 +232,12 @@ export default class ExportMarkdown {
         if (markerOverride && 'marker' in meta)
             meta.marker = markerOverride;
 
-        // Start a new list without separation due changing the bullet or ordered list delimiter starts a new list.
+        // Adjacent list blocks have no editable paragraph between them, so do
+        // not recreate a source blank line after the user deletes that gap.
         const bulletMarkerOrDelimiter
             = 'delimiter' in meta ? meta.delimiter : meta.marker;
 
-        if (lastListBullet && lastListBullet !== bulletMarkerOrDelimiter)
+        if (lastListBullet)
             insertNewLine = false;
 
         if (insertNewLine)
