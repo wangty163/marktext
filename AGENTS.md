@@ -39,6 +39,11 @@ level and the final Markdown; do not prebuild the transient empty item or jump t
 the expected gap, because that bypasses the empty-item unindent path. Cover bullet, ordered, and
 task lists when the shared list path changes.
 
+For collapsed line copy/cut inside a list, the current row is the marker-bearing direct content
+child, not the whole list-item subtree. Exclude later children such as nested lists from both the
+clipboard payload and internal paste state; cutting must preserve those children, and the focused
+regression must assert copied text, pasted Markdown, post-cut Markdown, and undo restoration.
+
 For installed-app interaction QA, use a disposable Markdown file; never select or type in a
 user-owned document. For save and round-trip checks, send real keypresses and poll the on-disk
 content until it matches or times out. Verify the editor tree and the file; a UI-only assertion
@@ -48,6 +53,9 @@ installed executable with `MARKTEXT_E2E_EXECUTABLE=/Applications/MarkText.app/Co
 The shared launcher supplies an isolated temporary profile. Do not use app-level Computer Use or a
 separately shell-launched CDP instance for this case: the shared bundle id and single-instance lock
 can target the user's window or terminate the QA instance.
+Run this installed-app path directly from `packages/desktop` with
+`MARKTEXT_E2E_EXECUTABLE=/Applications/MarkText.app/Contents/MacOS/marktext ./node_modules/.bin/playwright test --config=test/e2e/playwright.config.ts <spec>`;
+do not route it through pnpm, whose workspace reconciliation can abort in a non-interactive run.
 
 ## Commit & Pull Request Guidelines
 
