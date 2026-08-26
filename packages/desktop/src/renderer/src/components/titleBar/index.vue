@@ -64,7 +64,7 @@
       >
         <el-tooltip
           class="item"
-          :content="`${wordCount[show]} ${HASH[show].full + (wordCount[show] > 1 ? 's' : '')}`"
+          :content="`${countLabel} ${wordCount[show]}`"
           placement="bottom-end"
         >
           <template #content>
@@ -83,7 +83,7 @@
             class="word-count"
             @click.stop="handleWordClick"
           >
-            <span class="text-center-vertical">{{ `${HASH[show].short} ${wordCount[show]}` }}</span>
+            <span class="text-center-vertical">{{ `${countLabel} ${wordCount[show]}` }}</span>
           </div>
         </el-tooltip>
       </div>
@@ -203,24 +203,6 @@ const editorStore = useEditorStore()
 const { t } = useI18n()
 
 const isOsx = isOsxPlatform
-const HASH = {
-  word: {
-    short: 'W',
-    full: 'word'
-  },
-  character: {
-    short: 'C',
-    full: 'character'
-  },
-  paragraph: {
-    short: 'P',
-    full: 'paragraph'
-  },
-  all: {
-    short: 'A',
-    full: '(with space)character'
-  }
-}
 const windowIconMinimize = minimizePath
 const windowIconRestore = restorePath
 const windowIconMaximize = maximizePath
@@ -229,6 +211,16 @@ const windowIconClose = closePath
 const isFullScreen = ref(false)
 const isMaximized = ref(false)
 const show = ref<'word' | 'paragraph' | 'character' | 'all'>('word')
+const countLabel = computed(() =>
+  t(
+    {
+      word: 'menu.counter.words',
+      paragraph: 'menu.counter.paragraphs',
+      character: 'menu.counter.characters',
+      all: 'menu.counter.charactersWithSpaces'
+    }[show.value]
+  )
+)
 
 onMounted(async () => {
   try {

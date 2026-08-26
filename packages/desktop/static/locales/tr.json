@@ -3,7 +3,8 @@
     "counter": {
       "words": "Sözcükler",
       "characters": "Karakterler",
-      "paragraphs": "Paragraflar"
+      "paragraphs": "Paragraflar",
+      "charactersWithSpaces": "Karakterler (boşluklarla)"
     },
     "file": {
       "file": "Dosya",

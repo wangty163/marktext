@@ -3,7 +3,8 @@
     "counter": {
       "words": "단어 수",
       "characters": "글자 수",
-      "paragraphs": "단락 수"
+      "paragraphs": "단락 수",
+      "charactersWithSpaces": "글자 수(공백 포함)"
     },
     "file": {
       "file": "파일",

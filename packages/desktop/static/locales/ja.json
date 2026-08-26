@@ -3,7 +3,8 @@
     "counter": {
       "words": "単語数",
       "characters": "文字数",
-      "paragraphs": "段落数"
+      "paragraphs": "段落数",
+      "charactersWithSpaces": "文字数（空白を含む）"
     },
     "file": {
       "file": "ファイル",

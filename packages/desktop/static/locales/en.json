@@ -3,7 +3,8 @@
     "counter": {
       "words": "Words",
       "characters": "Characters",
-      "paragraphs": "Paragraphs"
+      "paragraphs": "Paragraphs",
+      "charactersWithSpaces": "Characters (with spaces)"
     },
     "file": {
       "file": "File",

@@ -55,8 +55,8 @@ test.describe('Editor input and source-mode roundtrip', () => {
 // Coverage backfill (checklist item 24). The desktop title-bar word/character/
 // paragraph counter lives in
 // packages/desktop/src/renderer/src/components/titleBar/index.vue: the clickable
-// `.word-count > span.text-center-vertical` renders `${HASH[show].short}
-// ${wordCount[show]}` where `show` cycles word -> paragraph -> character -> all
+// `.word-count > span.text-center-vertical` renders the localized category and
+// `${wordCount[show]}` where `show` cycles word -> paragraph -> character -> all
 // on click (handleWordClick). The counter value flows from
 // editor.vue json-change -> LISTEN_FOR_CONTENT_CHANGE -> store/editor.ts tab
 // wordCount -> app.vue currentFile.wordCount -> the title-bar `word-count` prop.
@@ -67,11 +67,11 @@ test.describe('Editor input and source-mode roundtrip', () => {
 
 const WORD_COUNT_TEXT = '.word-count .text-center-vertical'
 
-// Read the title-bar counter text, e.g. "W 12". Returns the trimmed string.
+// Read the localized title-bar counter text, e.g. "字数 12".
 const counterText = (page: Page): Promise<string> =>
   page.locator(WORD_COUNT_TEXT).innerText()
 
-// Parse the trailing integer off a counter label like "W 12" / "P 3".
+// Parse the trailing integer off a counter label like "字数 12" / "段落数 3".
 const counterValue = async(page: Page): Promise<number> => {
   const text = await counterText(page)
   const match = text.trim().match(/(\d+)\s*$/)
@@ -110,10 +110,11 @@ test.describe('Title-bar word counter (item 24)', () => {
     if (app) await app.close()
   })
 
-  test('the counter starts in word ("W") mode with the loaded document count', async() => {
+  test('the counter starts with the localized word label and loaded document count', async() => {
+    await sendIpcToRenderer(app, 'language-changed', 'zh-CN')
     const counter = page.locator(WORD_COUNT_TEXT)
     await expect(counter).toBeVisible({ timeout: 5000 })
-    await expect.poll(() => counterText(page)).toMatch(/^W\s/)
+    await expect.poll(() => counterText(page)).toMatch(/^字数\s/)
     const markdown = await getMarkdownContent(page, app)
     await expect.poll(() => counterValue(page)).toBe(expectedCount(markdown).word)
   })
@@ -151,28 +152,28 @@ test.describe('Title-bar word counter (item 24)', () => {
 
     const counter = page.locator(WORD_COUNT_TEXT)
 
-    // Default word mode: "W" prefix.
-    await expect.poll(() => counterText(page)).toMatch(/^W\s/)
+    // Default word mode.
+    await expect.poll(() => counterText(page)).toMatch(/^字数\s/)
     await expect.poll(() => counterValue(page)).toBe(expected.word)
 
     // Click cycles word -> paragraph.
     await counter.click()
-    await expect.poll(() => counterText(page)).toMatch(/^P\s/)
+    await expect.poll(() => counterText(page)).toMatch(/^段落数\s/)
     await expect.poll(() => counterValue(page)).toBe(expected.paragraph)
 
     // paragraph -> character.
     await counter.click()
-    await expect.poll(() => counterText(page)).toMatch(/^C\s/)
+    await expect.poll(() => counterText(page)).toMatch(/^字符数\s/)
     await expect.poll(() => counterValue(page)).toBe(expected.character)
 
     // character -> all (raw markdown length, with spaces).
     await counter.click()
-    await expect.poll(() => counterText(page)).toMatch(/^A\s/)
+    await expect.poll(() => counterText(page)).toMatch(/^字符数（含空格）\s/)
     await expect.poll(() => counterValue(page)).toBe(expected.all)
 
     // all -> wraps back to word.
     await counter.click()
-    await expect.poll(() => counterText(page)).toMatch(/^W\s/)
+    await expect.poll(() => counterText(page)).toMatch(/^字数\s/)
     await expect.poll(() => counterValue(page)).toBe(expected.word)
   })
 })
