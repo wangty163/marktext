@@ -84,6 +84,17 @@ function flush(): Promise<void> {
     return new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 }
 
+function listDepth(content: Content): number {
+    let parent = content.parent;
+    let depth = 0;
+    while (parent && !parent.isScrollPage) {
+        if (parent.blockName === 'list-item' || parent.blockName === 'task-list-item')
+            depth++;
+        parent = parent.parent;
+    }
+    return depth;
+}
+
 // `getState()` returns a discriminated `TState` union; only some variants carry
 // `text`. The blocks asserted here are paragraphs, so narrow to read it.
 function blockText(state: ReturnType<Muya['getState']>, index: number): string {
@@ -191,6 +202,98 @@ describe('enter at end-of-text — appends an empty paragraph with the caret in 
     });
 });
 
+describe('enter at the end of a list row', () => {
+    it.each([
+        {
+            name: 'bullet',
+            markdown: '- parent\n  - child\n',
+            nestedListName: 'bullet-list',
+            expected: '- parent\n  * \n  * child\n',
+            afterUnindent: '- parent\n- \n  - child\n',
+        },
+        {
+            name: 'ordered',
+            markdown: '1. parent\n   1. child\n',
+            nestedListName: 'order-list',
+            expected: '1. parent\n   1. \n   2. child\n',
+            afterUnindent: '1. parent\n2. \n   1. child\n',
+        },
+        {
+            name: 'task',
+            markdown: '- [ ] parent\n  - [ ] child\n',
+            nestedListName: 'task-list',
+            expected: '- [ ] parent\n  - [ ] \n  - [ ] child\n',
+            afterUnindent: '- [ ] parent\n- [ ] \n  - [ ] child\n',
+        },
+    ])('inserts an empty $name child before the existing child list', async ({
+        markdown,
+        nestedListName,
+        expected,
+        afterUnindent,
+    }) => {
+        const muya = bootMuya(markdown);
+        const parent = contentByText(muya, 'parent');
+
+        enterAt(muya, parent, parent.text.length);
+
+        await flush();
+        const outer = muya.getState()[0] as {
+            children: Array<{ children: Array<{ name: string; children?: unknown[] }> }>;
+        };
+        const nestedList = outer.children[0].children[1];
+        expect(nestedList.name).toBe(nestedListName);
+        expect(nestedList.children).toHaveLength(2);
+        let active = muya.editor.activeContentBlock!;
+        expect(active.text).toBe('');
+        expect(listDepth(active)).toBe(2);
+        expect(muya.getMarkdown()).toBe(expected);
+
+        enterAt(muya, active, 0);
+        await flush();
+        active = muya.editor.activeContentBlock!;
+        expect(active.text).toBe('');
+        expect(listDepth(active)).toBe(1);
+        expect(muya.getMarkdown()).toBe(afterUnindent);
+    });
+
+    it.each([
+        { name: 'bullet', markdown: '- parent\n', expected: '- parent\n- \n' },
+        { name: 'ordered', markdown: '1. parent\n', expected: '1. parent\n2. \n' },
+        { name: 'task', markdown: '- [ ] parent\n', expected: '- [ ] parent\n- [ ] \n' },
+    ])('inserts an empty $name sibling when there is no child list', async ({
+        markdown,
+        expected,
+    }) => {
+        const muya = bootMuya(markdown);
+        const parent = contentByText(muya, 'parent');
+
+        enterAt(muya, parent, parent.text.length);
+
+        await flush();
+        const list = muya.getState()[0] as { children: unknown[] };
+        expect(list.children).toHaveLength(2);
+        expect(muya.editor.activeContentBlock?.text).toBe('');
+        expect(muya.getMarkdown()).toBe(expected);
+    });
+
+    it('undoes and redoes the child insertion as one edit', async () => {
+        const muya = bootMuya('- parent\n  - child\n');
+        const parent = contentByText(muya, 'parent');
+
+        enterAt(muya, parent, parent.text.length);
+        await flush();
+        expect(muya.getMarkdown()).toBe('- parent\n  * \n  * child\n');
+
+        muya.undo();
+        await flush();
+        expect(muya.getMarkdown()).toBe('- parent\n  - child\n');
+
+        muya.redo();
+        await flush();
+        expect(muya.getMarkdown()).toBe('- parent\n  * \n  * child\n');
+    });
+});
+
 describe('enter on an imported list gap', () => {
     it('creates a sibling item, then unindents once per Enter before using the gap', async () => {
         const muya = bootMuya('- outer\n  - middle\n    - inner\n\n- next\n');
@@ -201,14 +304,7 @@ describe('enter on an imported list gap', () => {
             enterAt(muya, content, content.text.length);
             await flush();
             content = muya.editor.activeContentBlock!;
-            let parent = content.parent;
-            let depth = 0;
-            while (parent && !parent.isScrollPage) {
-                if (parent.blockName === 'list-item' || parent.blockName === 'task-list-item')
-                    depth++;
-                parent = parent.parent;
-            }
-            depths.push(depth);
+            depths.push(listDepth(content));
         }
 
         expect(depths).toEqual([3, 2, 1, 0]);

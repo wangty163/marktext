@@ -28,6 +28,11 @@ Root `.editorconfig`, Prettier, and ESLint enforce UTF-8, LF endings, two-space 
 
 Name tests `*.spec.ts`. Add a focused regression test for behavior changes; there is no repository-wide numeric coverage target. Use Vitest for unit logic and Playwright for real Electron, selection, clipboard, or UI flows. Keep Muya tests beside the affected source; use `test/spec/` for CommonMark or GFM behavior.
 
+Before implementing any feature or behavior change, trace the shared production path and its
+callers, then identify related variants, entry points, serialization, history, persistence, and
+UI behavior that may be affected. Preserve existing invariants and adapt every impacted branch,
+test, and document together; a narrow patch is not complete when it makes sibling behavior drift.
+
 For list Enter and blank-line regressions, start from a nonempty list item and invoke the
 production Enter handler once per simulated keypress. Assert every intermediate indentation
 level and the final Markdown; do not prebuild the transient empty item or jump the selection to

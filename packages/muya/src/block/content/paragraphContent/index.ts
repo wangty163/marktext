@@ -432,6 +432,29 @@ class ParagraphContent extends Format {
         const listItem = parent!.parent!;
         const list = listItem!.parent! as BulletList | OrderList | TaskList;
 
+        const childList = parent!.next;
+        if (
+            text.length !== 0
+            && start.offset === text.length
+            && end.offset === text.length
+            && childList
+            && /^(?:bullet-list|order-list|task-list)$/.test(childList.blockName)
+        ) {
+            const paragraphChild: IParagraphState = { name: 'paragraph', text: '' };
+            const newNodeState: IListItemState | ITaskListItemState
+                = childList.blockName === 'task-list'
+                    ? { name: 'task-list-item', meta: { checked: false }, children: [paragraphChild] }
+                    : { name: 'list-item', children: [paragraphChild] };
+            const newListItem = ScrollPage.loadBlock(newNodeState.name).create(
+                muya,
+                newNodeState,
+            );
+
+            childList.insertBefore(newListItem, childList.firstChild as Nullable<Parent>);
+            newListItem.firstContentInDescendant().setCursor(0, 0, true);
+            return;
+        }
+
         if (text.length === 0) {
             if (parent!.isOnlyChild()) {
                 const unindentType = this._getUnindentType();
