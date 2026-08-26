@@ -11,18 +11,22 @@ import {
   sendIpcToRenderer
 } from './helpers'
 
+let app: ElectronApplication
+let page: Page
+
+test.beforeAll(async() => {
+  const launched = await launchWithMarkdown()
+  app = launched.app
+  page = launched.page
+})
+
+test.afterAll(async() => {
+  if (app) await app.close()
+})
+
 test.describe('Editor input and source-mode roundtrip', () => {
-  let app: ElectronApplication
-  let page: Page
-
   test.beforeAll(async() => {
-    const launched = await launchWithMarkdown('# Hello\n\nStarting paragraph.\n')
-    app = launched.app
-    page = launched.page
-  })
-
-  test.afterAll(async() => {
-    if (app) await app.close()
+    await setSourceMarkdown(page, app, '# Hello\n\nStarting paragraph.\n')
   })
 
   test('Initial markdown is loaded into the editor', async() => {
@@ -96,18 +100,9 @@ const expectedCount = (markdown: string): { word: number; paragraph: number; cha
 }
 
 test.describe('Title-bar word counter (item 24)', () => {
-  let app: ElectronApplication
-  let page: Page
-
   test.beforeAll(async() => {
-    const launched = await launchWithMarkdown('# Counter\n\nOne two three.\n')
-    app = launched.app
-    page = launched.page
+    await setSourceMarkdown(page, app, '# Counter\n\nOne two three.\n')
     await placeCaretInEditor(page)
-  })
-
-  test.afterAll(async() => {
-    if (app) await app.close()
   })
 
   test('the counter starts with the localized word label and loaded document count', async() => {
@@ -191,19 +186,12 @@ test.describe('Title-bar word counter (item 24)', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Edit > Select All (item 169)', () => {
-  let app: ElectronApplication
-  let page: Page
-
   test.beforeAll(async() => {
-    const launched = await launchWithMarkdown(
+    await setSourceMarkdown(
+      page,
+      app,
       'First paragraph alpha.\n\nMiddle paragraph beta.\n\nLast paragraph gamma.\n'
     )
-    app = launched.app
-    page = launched.page
-  })
-
-  test.afterAll(async() => {
-    if (app) await app.close()
   })
 
   test('Select All escalates the selection to the whole WYSIWYG document', async() => {
@@ -284,35 +272,30 @@ test.describe('Edit > Select All (item 169)', () => {
 })
 
 test.describe('Selection highlight continuity', () => {
-  let app: ElectronApplication
-  let page: Page
-
   test.beforeAll(async() => {
-    const launched = await launchWithMarkdown([
-      '- 状态=日间',
-      '  - 事件：哄睡模式，动作：状态=日间准备哄睡',
-      '- 状态=日间准备哄睡',
-      '  - 事件：次卧关门，动作：状态=日间哄睡中',
-      '  - 事件：维持当前状态时间达到阈值，动作：状态=日间',
-      '- 状态=日间哄睡中',
-      '  - 事件：次卧开门，约束：当前状态持续超过10分钟，动作：状态=日间',
-      '  - 事件：维持当前状态时间达到阈值，动作：状态=日间',
-      '- 状态=夜间',
-      '  - 事件：哄睡模式，动作：状态=夜间准备哄睡',
-      '- 状态=夜间准备哄睡',
-      '  - 事件：次卧关门，动作：状态=夜间哄睡中',
-      '  - 事件：维持当前状态时间达到阈值，动作：状态=夜间睡眠',
-      '- 状态=夜间准备哄睡',
-      '  - 事件：次卧关门，动作：状态=夜间哄睡中',
-      '  - 事件：维持当前状态时间达到阈值，动作：状态=夜间睡眠',
-      ''
-    ].join('\n'))
-    app = launched.app
-    page = launched.page
-  })
-
-  test.afterAll(async() => {
-    if (app) await app.close()
+    await setSourceMarkdown(
+      page,
+      app,
+      [
+        '- 状态=日间',
+        '  - 事件：哄睡模式，动作：状态=日间准备哄睡',
+        '- 状态=日间准备哄睡',
+        '  - 事件：次卧关门，动作：状态=日间哄睡中',
+        '  - 事件：维持当前状态时间达到阈值，动作：状态=日间',
+        '- 状态=日间哄睡中',
+        '  - 事件：次卧开门，约束：当前状态持续超过10分钟，动作：状态=日间',
+        '  - 事件：维持当前状态时间达到阈值，动作：状态=日间',
+        '- 状态=夜间',
+        '  - 事件：哄睡模式，动作：状态=夜间准备哄睡',
+        '- 状态=夜间准备哄睡',
+        '  - 事件：次卧关门，动作：状态=夜间哄睡中',
+        '  - 事件：维持当前状态时间达到阈值，动作：状态=夜间睡眠',
+        '- 状态=夜间准备哄睡',
+        '  - 事件：次卧关门，动作：状态=夜间哄睡中',
+        '  - 事件：维持当前状态时间达到阈值，动作：状态=夜间睡眠',
+        ''
+      ].join('\n')
+    )
   })
 
   test('whole-document selection has no one-pixel seams', async() => {
