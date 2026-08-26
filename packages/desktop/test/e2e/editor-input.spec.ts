@@ -110,10 +110,12 @@ test.describe('Title-bar word counter (item 24)', () => {
     if (app) await app.close()
   })
 
-  test('the counter is mounted and starts in word ("W") mode', async() => {
+  test('the counter starts in word ("W") mode with the loaded document count', async() => {
     const counter = page.locator(WORD_COUNT_TEXT)
     await expect(counter).toBeVisible({ timeout: 5000 })
     await expect.poll(() => counterText(page)).toMatch(/^W\s/)
+    const markdown = await getMarkdownContent(page, app)
+    await expect.poll(() => counterValue(page)).toBe(expectedCount(markdown).word)
   })
 
   test('typing ASCII words + CJK characters raises the word count to the engine value', async() => {
