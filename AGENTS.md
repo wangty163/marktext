@@ -43,6 +43,11 @@ For installed-app interaction QA, use a disposable Markdown file; never select o
 user-owned document. For save and round-trip checks, send real keypresses and poll the on-disk
 content until it matches or times out. Verify the editor tree and the file; a UI-only assertion
 does not prove that an inserted or deleted blank line was persisted.
+When a user-owned MarkText window is already open, run the relevant existing E2E spec against the
+installed executable with `MARKTEXT_E2E_EXECUTABLE=/Applications/MarkText.app/Contents/MacOS/marktext`.
+The shared launcher supplies an isolated temporary profile. Do not use app-level Computer Use or a
+separately shell-launched CDP instance for this case: the shared bundle id and single-instance lock
+can target the user's window or terminate the QA instance.
 
 ## Commit & Pull Request Guidelines
 
@@ -51,5 +56,9 @@ Follow the history's Conventional Commit style: `fix(desktop): preserve RTL text
 After every completed development task in this repository, decide whether the README or related docs need updating, commit the verified task changes, and push the current branch to `origin` unless the user explicitly says not to. Do not include unrelated user changes in the commit.
 
 For local macOS installs, replace only `/Applications/MarkText.app`: move the existing bundle to a non-`.app` backup outside `/Applications`, copy the verified build to that exact path, then unregister and move the packaged `.app` artifact out of the indexed workspace. Treat LaunchServices error `-10814` as “not registered” and do not retry renamed backups. Confirm that bundle-id lookup returns only the installed application.
+Do not run concurrent build/install tasks against the shared `dist/` output or
+`/Applications/MarkText.app`. Use the exact installed path, `Info.plist`, matching `app.asar`
+hashes, and a successful installed-app E2E as the completion evidence; Spotlight metadata can lag
+and is not an installation gate.
 When only a local `.app` is needed, run `electron-builder --mac --<arch> --dir --publish never` from `packages/desktop`; do not build DMG or ZIP artifacts unless requested.
 After a visible macOS change, launch that installed path once and verify the actual window and interaction; bundle contents, DOM assertions, and source-run screenshots do not replace installed-window visual QA.

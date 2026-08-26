@@ -66,11 +66,17 @@ export const launchElectron = async(
   options: LaunchOptions = {}
 ): Promise<LaunchResult> => {
   userArgs = userArgs || []
-  const executablePath = getElectronPath()
+  const externalExecutable = process.env.MARKTEXT_E2E_EXECUTABLE
+  const executablePath = externalExecutable ? path.resolve(externalExecutable) : getElectronPath()
+  if (externalExecutable && !fs.existsSync(executablePath)) {
+    throw new Error(`MARKTEXT_E2E_EXECUTABLE does not exist: ${executablePath}`)
+  }
   // Pass project root as entry so Electron reads package.json and getAppPath() returns project root.
   // Passing out/main/index.js directly bypasses package.json and breaks __static path resolution.
   const userDataDir = trackTempDir(getTempPath())
-  const args = [projectRoot, '--user-data-dir', userDataDir].concat(userArgs)
+  const args = externalExecutable
+    ? ['--user-data-dir', userDataDir].concat(userArgs)
+    : [projectRoot, '--user-data-dir', userDataDir].concat(userArgs)
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v
   env.PERF_TESTING = 'true'
