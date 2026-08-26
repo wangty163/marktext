@@ -70,10 +70,13 @@ function contentDescendants(block: Parent): Content[] {
 }
 
 function structuralLineBlock(content: Content): Nullable<Parent> {
-    let parent = content.parent;
+    let child = content.parent;
+    let parent = child?.parent;
     while (parent && !parent.isScrollPage) {
-        if (parent.blockName === 'list-item' || parent.blockName === 'task-list-item')
-            return parent;
+        if (parent.blockName === 'list-item' || parent.blockName === 'task-list-item') {
+            return child === parent.firstChild ? parent : child;
+        }
+        child = parent;
         parent = parent.parent;
     }
 
@@ -91,18 +94,87 @@ function isTextLine(content: Content): boolean {
     return content.text.includes('\n');
 }
 
-function removeStructuralLine(clipboard: Clipboard, block: Parent): boolean {
-    const next = block.lastContentInDescendant()?.nextContentInContext();
-    const previous = block.firstContentInDescendant()?.previousContentInContext();
-    let parent = block.parent;
+function preserveListRowChildren(
+    block: Parent,
+    list: Parent,
+    previousItem: Nullable<Parent>,
+): Nullable<Content> {
+    let preserved: Nullable<Content> = null;
+
+    block.forEach((node, index) => {
+        if (index === 0 || !node.isParent())
+            return;
+
+        if (previousItem) {
+            const clone = node.clone() as Parent;
+            previousItem.append(clone, 'user');
+            preserved ??= clone.firstContentInDescendant();
+        }
+        else if (node.blockName === list.blockName) {
+            node.forEach((item) => {
+                if (!item.isParent())
+                    return;
+                const clone = item.clone() as Parent;
+                list.insertBefore(clone, block);
+                preserved ??= clone.firstContentInDescendant();
+            });
+        }
+        else {
+            const clone = node.clone() as Parent;
+            list.parent!.insertBefore(clone, list);
+            preserved ??= clone.firstContentInDescendant();
+        }
+    });
+
+    return preserved;
+}
+
+function removeEmptyParents(parent: Nullable<Parent>): void {
+    let empty = parent;
+    while (empty && !empty.isScrollPage && empty.length() === 0) {
+        const next = empty.parent;
+        empty.remove();
+        empty = next;
+    }
+}
+
+function removeListRow(clipboard: Clipboard, block: Parent): boolean {
+    const list = block.parent;
+    if (!list)
+        return false;
+
+    const nextItem = block.next as Nullable<Parent>;
+    const previousItem = block.prev as Nullable<Parent>;
+    const preserved = preserveListRowChildren(block, list, previousItem);
 
     block.remove();
-    while (parent && !parent.isScrollPage && parent.length() === 0) {
-        const empty = parent;
-        parent = parent.parent;
-        empty.remove();
+    removeEmptyParents(list);
+    if (clipboard.scrollPage?.length() === 0) {
+        resetToEmptyParagraph(clipboard);
+        return false;
     }
 
+    let cursor = nextItem?.firstContentInDescendant() ?? null;
+    if (!cursor && previousItem)
+        cursor = previousItem.firstContentInDescendant();
+    if (!cursor)
+        cursor = preserved ?? null;
+    cursor?.domNode?.focus();
+    cursor?.setCursor(0, 0, true);
+
+    return nextItem == null && previousItem != null;
+}
+
+function removeStructuralLine(clipboard: Clipboard, block: Parent): boolean {
+    if (block.blockName === 'list-item' || block.blockName === 'task-list-item')
+        return removeListRow(clipboard, block);
+
+    const next = block.lastContentInDescendant()?.nextContentInContext();
+    const previous = block.firstContentInDescendant()?.previousContentInContext();
+    const parent = block.parent;
+
+    block.remove();
+    removeEmptyParents(parent);
     if (clipboard.scrollPage?.length() === 0) {
         resetToEmptyParagraph(clipboard);
         return false;
@@ -171,7 +243,12 @@ export function collapsedLineClipboard(
     if (lineBlock == null || lineBlock.parent == null)
         return null;
 
-    const contents = contentDescendants(lineBlock);
+    const isListRow
+        = lineBlock.blockName === 'list-item' || lineBlock.blockName === 'task-list-item';
+    const rowBlock = isListRow && lineBlock.firstChild?.isParent()
+        ? lineBlock.firstChild
+        : lineBlock;
+    const contents = contentDescendants(rowBlock);
     const first = contents[0];
     const last = contents[contents.length - 1];
     if (!first || !last)
@@ -180,10 +257,14 @@ export function collapsedLineClipboard(
     const lineSelection = selectionRange(first, 0, last, last.text.length);
     const payload = getSelectionClipboardData(clipboard, lineSelection, true);
 
+    const state = deepClone(lineBlock.getState()) as TState & { children?: TState[] };
+    if (isListRow && state.children)
+        state.children = state.children.slice(0, 1);
+
     const copy: TLineCopy = {
         kind: 'block',
         text: payload.text,
-        state: deepClone(lineBlock.getState()),
+        state,
         sourceParentName: lineBlock.parent.blockName,
         cursorIndex: Math.max(contents.indexOf(block), 0),
         cursorOffset: offset,

@@ -133,6 +133,35 @@ describe('collapsed line clipboard', () => {
         expect(listMuya.getMarkdown()).toBe('- one\n- two\n- two\n- three\n');
     });
 
+    it('copies and cuts a parent list row without taking its child list', async () => {
+        const markdown = '- before\n- parent\n  - child\n- after\n';
+        const copyMuya = bootMuya(markdown);
+        const copyRow = contentBlocks(copyMuya).find(block => block.text === 'parent')!;
+        placeCursor(copyRow, 3);
+
+        const clipboard = dispatchClipboard(copyMuya, 'copy');
+        dispatchClipboard(copyMuya, 'paste', clipboard);
+        await settle();
+
+        expect(clipboard.get('text/plain')).toBe('- parent\n');
+        expect(copyMuya.getMarkdown()).toBe(
+            '- before\n- parent\n- parent\n  - child\n- after\n',
+        );
+
+        const cutMuya = bootMuya(markdown);
+        const cutRow = contentBlocks(cutMuya).find(block => block.text === 'parent')!;
+        placeCursor(cutRow, 3);
+        const cutClipboard = dispatchClipboard(cutMuya, 'cut');
+        await settle();
+
+        expect(cutClipboard.get('text/plain')).toBe('- parent\n');
+        expect(cutMuya.getMarkdown()).toBe('- before\n  - child\n- after\n');
+
+        cutMuya.undo();
+        await settle();
+        expect(cutMuya.getMarkdown()).toBe(markdown);
+    });
+
     it('cuts only the logical line inside soft-break and fenced-code content', async () => {
         const paragraphMuya = bootMuya('first\nsecond\nthird\n');
         const paragraph = contentBlocks(paragraphMuya)[0];
