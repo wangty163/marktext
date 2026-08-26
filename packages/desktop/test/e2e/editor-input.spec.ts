@@ -226,6 +226,16 @@ test.describe('Edit > Select All (item 169)', () => {
     expect(selected).toContain('First paragraph alpha.')
     expect(selected).toContain('Middle paragraph beta.')
     expect(selected).toContain('Last paragraph gamma.')
+
+    const { borderRadius, lineHeight } = await page.evaluate(() => {
+      const content = document.querySelector('.mu-paragraph-content') as HTMLElement
+      return {
+        borderRadius: getComputedStyle(content, '::selection').borderRadius,
+        lineHeight: Number.parseFloat(getComputedStyle(content).lineHeight)
+      }
+    })
+    expect(borderRadius).toBe('0px')
+    expect(Number.isInteger(lineHeight)).toBe(true)
   })
 
   test('Select All while focus is in the search input leaves the editor selection alone', async() => {

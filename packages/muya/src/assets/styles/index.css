@@ -224,7 +224,12 @@ body {
     animation-duration: 0.25s;
 }
 
-*:not(.mu-hide)::selection,
+*:not(.mu-hide)::selection {
+    color: var(--editor-color);
+
+    background: var(--selection-color);
+}
+
 .mu-selection {
     padding: 0 0.2em;
 
