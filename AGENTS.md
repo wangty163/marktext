@@ -34,9 +34,10 @@ level and the final Markdown; do not prebuild the transient empty item or jump t
 the expected gap, because that bypasses the empty-item unindent path. Cover bullet, ordered, and
 task lists when the shared list path changes.
 
-For installed-app save and round-trip QA, use a disposable Markdown file, send real keypresses,
-and poll the on-disk content until it matches or times out. Verify the editor tree and the file;
-a UI-only assertion does not prove that an inserted or deleted blank line was persisted.
+For installed-app interaction QA, use a disposable Markdown file; never select or type in a
+user-owned document. For save and round-trip checks, send real keypresses and poll the on-disk
+content until it matches or times out. Verify the editor tree and the file; a UI-only assertion
+does not prove that an inserted or deleted blank line was persisted.
 
 ## Commit & Pull Request Guidelines
 

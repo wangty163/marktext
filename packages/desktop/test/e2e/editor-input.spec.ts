@@ -279,3 +279,81 @@ test.describe('Edit > Select All (item 169)', () => {
     await expect(page.locator('.search-bar')).toBeHidden({ timeout: 5000 })
   })
 })
+
+test.describe('Selection highlight continuity', () => {
+  let app: ElectronApplication
+  let page: Page
+
+  test.beforeAll(async() => {
+    const launched = await launchWithMarkdown([
+      '- 状态=日间',
+      '  - 事件：哄睡模式，动作：状态=日间准备哄睡',
+      '- 状态=日间准备哄睡',
+      '  - 事件：次卧关门，动作：状态=日间哄睡中',
+      '  - 事件：维持当前状态时间达到阈值，动作：状态=日间',
+      '- 状态=日间哄睡中',
+      '  - 事件：次卧开门，约束：当前状态持续超过10分钟，动作：状态=日间',
+      '  - 事件：维持当前状态时间达到阈值，动作：状态=日间',
+      '- 状态=夜间',
+      '  - 事件：哄睡模式，动作：状态=夜间准备哄睡',
+      '- 状态=夜间准备哄睡',
+      '  - 事件：次卧关门，动作：状态=夜间哄睡中',
+      '  - 事件：维持当前状态时间达到阈值，动作：状态=夜间睡眠',
+      '- 状态=夜间准备哄睡',
+      '  - 事件：次卧关门，动作：状态=夜间哄睡中',
+      '  - 事件：维持当前状态时间达到阈值，动作：状态=夜间睡眠',
+      ''
+    ].join('\n'))
+    app = launched.app
+    page = launched.page
+  })
+
+  test.afterAll(async() => {
+    if (app) await app.close()
+  })
+
+  test('whole-document selection has no one-pixel seams', async() => {
+    await placeCaretInEditor(page)
+    await expect
+      .poll(async() => {
+        await sendIpcToRenderer(app, 'mt::editor-edit-action', 'selectAll')
+        await page.waitForTimeout(120)
+        return page.evaluate(() => window.getSelection()?.toString() ?? '')
+      }, { timeout: 5000 })
+      .toContain('状态=夜间睡眠')
+
+    const screenshot = await page.locator('.editor-component').screenshot()
+    const { selectedRows, seamRows } = await page.evaluate(async(base64) => {
+      const image = new Image()
+      image.src = `data:image/png;base64,${base64}`
+      await image.decode()
+
+      const canvas = document.createElement('canvas')
+      canvas.width = image.width
+      canvas.height = image.height
+      const context = canvas.getContext('2d', { willReadFrequently: true })
+      if (!context) throw new Error('Canvas 2D context is unavailable')
+      context.drawImage(image, 0, 0)
+      const { data, width, height } = context.getImageData(0, 0, image.width, image.height)
+      const highlighted = Array.from({ length: height }, (_, y) => {
+        for (let x = 0; x < width; x++) {
+          const offset = (y * width + x) * 4
+          if (data[offset + 2] - data[offset] >= 25 && data[offset + 1] - data[offset] >= 20) {
+            return true
+          }
+        }
+        return false
+      })
+
+      return {
+        selectedRows: highlighted.filter(Boolean).length,
+        seamRows: highlighted.flatMap((value, y) =>
+          !value && highlighted[y - 1] && highlighted[y + 1] ? [y] : []
+        )
+      }
+    }, screenshot.toString('base64'))
+
+    expect(selectedRows).toBeGreaterThan(0)
+    expect(seamRows).toEqual([])
+  })
+})
