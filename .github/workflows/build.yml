@@ -1,6 +1,7 @@
-name: PR Build
+name: Desktop Build
 
 on:
+  workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened]
     # packages/muya (TS v2) does not affect the electron desktop build.
@@ -15,10 +16,12 @@ concurrency:
 jobs:
   run-on-pr-head:
     permissions:
+      contents: read
       pull-requests: read
       actions: read
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: linux
@@ -98,7 +101,7 @@ jobs:
   comment-on-pr:
     name: Comment artifact links on PR
     needs: run-on-pr-head
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

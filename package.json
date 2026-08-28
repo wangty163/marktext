@@ -28,7 +28,7 @@
     "build:linux": "pnpm --filter marktext build:linux",
     "perf:inspect": "pnpm --filter marktext perf:inspect",
     "perf:inspect-brk": "pnpm --filter marktext perf:inspect-brk",
-    "test": "pnpm --filter marktext test",
+    "test": "node --test scripts/mergeUpdateMetadata.test.mjs && pnpm --filter marktext test",
     "test:unit": "pnpm --filter marktext test:unit",
     "test:e2e": "pnpm --filter marktext test:e2e",
     "typecheck": "pnpm --filter marktext typecheck",

@@ -5,13 +5,14 @@
 Clone the repository:
 
 ```
-git clone https://github.com/marktext/marktext.git
+git clone https://github.com/wangty163/marktext.git
 ```
 
 ## Container Setup
 
 The easiest way to build Marktext on Linux is from inside a container.
 Here are the steps for doing so:
+
 ```sh
 # cd to marktext repository
 
@@ -28,7 +29,7 @@ apt-get install -y libx11-dev libxkbfile-dev libsecret-1-dev libfontconfig-dev r
 cd /mnt
 corepack enable
 pnpm install
-pnpm run build
+pnpm run build:linux
 
 exit
 # container should now be terminated
@@ -71,7 +72,8 @@ On Arch Linux: `sudo pacman -S libx11 libxkbfile libsecret fontconfig`
 
 1. Go to `marktext` folder
 2. Install dependencies: `pnpm install`
-3. Build MarkText binaries and packages: `pnpm run build`
+3. Package MarkText for the current operating system: `pnpm run build:linux`, `pnpm run build:mac`,
+   or `pnpm run build:win`
 4. MarkText binary is located under `dist` folder (electron-builder output)
 
 Copy the build app to applications folder, or if on Windows run the executable installer.
@@ -82,18 +84,29 @@ Copy the build app to applications folder, or if on Windows run the executable i
 $ pnpm run <script>
 ```
 
-| Script  | Description                                      |
-| ------- | ------------------------------------------------ |
-| `build` | Build MarkText binaries and packages for your OS |
-| `dev`   | Build and run MarkText in developer mode         |
-| `lint`  | Lint code style                                  |
-| `test`  | Run unit tests                                   |
+| Script        | Description                                                   |
+| ------------- | ------------------------------------------------------------- |
+| `build`       | Compile the Electron application without packaging installers |
+| `build:linux` | Build Linux installers and archives                           |
+| `build:mac`   | Build macOS DMG and ZIP artifacts                             |
+| `build:win`   | Build Windows x64 installer and ZIP artifacts                 |
+| `dev`         | Build and run MarkText in developer mode                      |
+| `lint`        | Lint code style                                               |
+| `test`        | Run unit tests                                                |
 
 For more scripts please see `package.json`.
 
->[!TIP]
->To improve efficiency during development:
+### Multi-platform CI build
+
+Open the repository's **Actions → Desktop Build → Run workflow** page to start the five-job matrix
+manually. It builds Linux x64, Windows x64/arm64, and macOS x64/arm64 on native GitHub-hosted
+runners. Installers are available from the completed workflow run for 30 days. Pull requests also
+run the same matrix automatically.
+
+> [!TIP]
+> To improve efficiency during development:
+>
 > 1. Use `pnpm run dev` for development mode. This will automatically reload the window when source code is modified.
 > 2. Use `Ctrl+R` to manually reload the application in development mode if needed.
-> 
+>
 > This approach bypasses unnecessary rebuilds and optimizes the developer workflow. However, for CI or release builds, a full rebuild may still be necessary.

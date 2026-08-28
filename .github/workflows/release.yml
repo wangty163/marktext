@@ -18,8 +18,15 @@ jobs:
   validate:
     name: Validate tag
     runs-on: ubuntu-latest
+    outputs:
+      is_prerelease: ${{ steps.validate.outputs.is_prerelease }}
     steps:
-      - name: Validate semver tag
+      - name: Check out Git repository
+        uses: actions/checkout@v4.3.1
+
+      - name: Validate tag and package version
+        id: validate
+        shell: bash
         run: |
           tag="${GITHUB_REF_NAME}"
           # SemVer 2.0.0 with leading "v"
@@ -27,7 +34,20 @@ jobs:
             echo "::error::Tag '$tag' is not a valid semver (expected vX.Y.Z[-prerelease][+build])"
             exit 1
           fi
-          echo "Tag '$tag' is valid."
+
+          package_version="$(node -p "require('./packages/desktop/package.json').version")"
+          if [[ "$tag" != "v${package_version}" ]]; then
+            echo "::error::Tag '$tag' does not match desktop package version 'v${package_version}'"
+            exit 1
+          fi
+
+          version_without_build="${tag%%+*}"
+          if [[ "$version_without_build" == *-* ]]; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Tag '$tag' matches desktop package version '$package_version'."
 
   build:
     name: Build (${{ matrix.name }})
@@ -131,6 +151,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Each architecture writes the same channel filename. Stage unique names
+      # so the publish job can merge their file entries without overwriting one.
+      - name: Stage Windows update metadata
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: mv dist/latest.yml "dist/latest-windows-${{ matrix.arch }}.yml"
+
+      - name: Stage macOS update metadata
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: mv dist/latest-mac.yml "dist/latest-mac-${{ matrix.arch }}.yml"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4.6.2
         with:
@@ -143,6 +175,7 @@ jobs:
             dist/*.dmg
             dist/*.blockmap
             dist/*.yml
+            !dist/builder-debug.yml
             dist/*.AppImage
             dist/*.snap
             dist/*.deb
@@ -151,7 +184,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: build
+    needs: [validate, build]
     runs-on: ubuntu-latest
     # Per-job permissions REPLACE workflow-level ones, so re-declare
     # both: contents:write to publish the release, actions:read for
@@ -160,6 +193,9 @@ jobs:
       contents: write
       actions: read
     steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4.3.1
+
       # upload-artifact@v4 treats `dist/` as the common-ancestor root and
       # stores files flat inside each artifact (no `dist/` prefix). Downloading
       # with `path: dist` + `merge-multiple` recreates `./dist/<file>` across
@@ -169,6 +205,17 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      - name: Merge architecture-specific update metadata
+        run: |
+          node scripts/mergeUpdateMetadata.mjs \
+            dist/latest.yml \
+            dist/latest-windows-x64.yml \
+            dist/latest-windows-arm64.yml
+          node scripts/mergeUpdateMetadata.mjs \
+            dist/latest-mac.yml \
+            dist/latest-mac-x64.yml \
+            dist/latest-mac-arm64.yml
 
       - name: Generate SHA256SUMS.txt
         working-directory: dist
@@ -182,7 +229,7 @@ jobs:
 
       - name: Compose release notes body
         env:
-          IS_PRERELEASE: ${{ contains(github.ref_name, '-') }}
+          IS_PRERELEASE: ${{ needs.validate.outputs.is_prerelease }}
         run: |
           {
             if [[ "$IS_PRERELEASE" == "true" ]]; then
@@ -211,7 +258,7 @@ jobs:
         uses: softprops/action-gh-release@v2.6.2
         with:
           draft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ needs.validate.outputs.is_prerelease }}
           generate_release_notes: true
           name: ${{ github.ref_name }}
           body_path: release_body.md

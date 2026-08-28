@@ -3,6 +3,12 @@ productName: marktext
 directories:
   buildResources: build
   output: ../../dist
+# Keep the packaged updater on this fork even though the application package
+# retains upstream repository metadata for project links and attribution.
+publish:
+  provider: github
+  owner: wangty163
+  repo: marktext
 files:
   - '!**/.vscode/*'
   - '!src/*'
