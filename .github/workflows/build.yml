@@ -45,7 +45,7 @@ jobs:
             arch: arm64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
@@ -83,7 +83,7 @@ jobs:
         run: pnpm run build:win:${{ matrix.arch }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: marktext-${{ matrix.name }}
           retention-days: 30
@@ -109,7 +109,7 @@ jobs:
     steps:
       - name: Build comment body from artifacts
         id: build
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9.0.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
