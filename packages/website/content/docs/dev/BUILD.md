@@ -103,6 +103,11 @@ manually. It builds Linux x64, Windows x64/arm64, and macOS x64/arm64 on native 
 runners. Installers are available from the completed workflow run for 30 days. Pull requests also
 run the same matrix automatically.
 
+> [!IMPORTANT]
+> `Desktop Build` only uploads temporary Actions artifacts; it does not create an entry on the
+> repository's Releases page. A public release appears only after a matching `v*` tag triggers the
+> separate `Release MarkText` workflow. See the [release instructions](RELEASE.md) for details.
+
 > [!TIP]
 > To improve efficiency during development:
 >
