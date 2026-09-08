@@ -3,24 +3,14 @@ import path from 'path'
 import { isFile, isFile2, isSymbolicLink } from './index'
 import { minimatch } from 'minimatch'
 
+import { MARKDOWN_EXTENSIONS, EDITABLE_EXTENSIONS, hasEditableExtension } from '../textFiles'
+
 const isOsx = process.platform === 'darwin'
 
-export const MARKDOWN_EXTENSIONS: readonly string[] = Object.freeze([
-  'markdown',
-  'mdown',
-  'mkdn',
-  'md',
-  'mkd',
-  'mdwn',
-  'mdtxt',
-  'mdtext',
-  'mdx',
-  'text',
-  'txt'
-])
+export { MARKDOWN_EXTENSIONS, EDITABLE_EXTENSIONS } from '../textFiles'
 
 export const MARKDOWN_INCLUSIONS: readonly string[] = Object.freeze(
-  MARKDOWN_EXTENSIONS.map((x) => '*.' + x)
+  EDITABLE_EXTENSIONS.map((x) => '*.' + x)
 )
 
 export const IMAGE_EXTENSIONS: readonly string[] = Object.freeze([
@@ -127,6 +117,15 @@ export const isMarkdownFile = (filepath: string): boolean => {
     return isFile(targetPath) && hasMarkdownExtension(targetPath)
   }
   return hasMarkdownExtension(filepath)
+}
+
+/** Returns true for a supported document, including a symbolic link to one. */
+export const isEditableFile = (filepath: string): boolean => {
+  if (!isFile2(filepath)) return false
+  const target = isSymbolicLink(filepath)
+    ? path.resolve(path.dirname(filepath), fs.readlinkSync(filepath))
+    : filepath
+  return isFile(target) && hasEditableExtension(target)
 }
 
 /**

@@ -1,3 +1,5 @@
+import { useEditorStore } from './editor'
+import { hasTextExtension } from 'common/textFiles'
 import { defineStore } from 'pinia'
 import bus from '../bus'
 import { setLanguage } from '../i18n'
@@ -149,7 +151,7 @@ export const usePreferencesStore = defineStore('preferences', {
     wordWrapInToc: false,
     fileSortBy: 'created',
     fileSortOrder: 'asc',
-    startUpAction: 'restoreAll',
+    startUpAction: 'blank',
     restoreLayoutState: true,
     defaultDirectoryToOpen: '',
     lastOpenedFolder: '',
@@ -238,7 +240,9 @@ export const usePreferencesStore = defineStore('preferences', {
   }),
 
   getters: {
-    getAll: (state): PreferencesState => state
+    getAll: (state): PreferencesState => state,
+    effectiveSourceCode: (state): boolean =>
+      state.sourceCode || hasTextExtension(useEditorStore().currentFile?.pathname || '')
   },
 
   actions: {
@@ -267,6 +271,7 @@ export const usePreferencesStore = defineStore('preferences', {
     },
 
     TOGGLE_VIEW_MODE(entryName: keyof PreferencesState | string): void {
+      if (entryName === 'sourceCode' && hasTextExtension(useEditorStore().currentFile?.pathname || '')) return
       const target = this as unknown as Record<string, unknown>
       target[entryName as string] = !target[entryName as string]
     },
@@ -312,7 +317,7 @@ export const usePreferencesStore = defineStore('preferences', {
       window.electron.ipcRenderer.on('mt::toggle-view-mode-entry', (_event, entryName) => {
         this.TOGGLE_VIEW_MODE(entryName)
         const target = this as unknown as Record<string, unknown>
-        this.DISPATCH_EDITOR_VIEW_STATE({ [entryName]: target[entryName] })
+        this.DISPATCH_EDITOR_VIEW_STATE({ [entryName]: entryName === 'sourceCode' ? this.effectiveSourceCode : target[entryName] })
       })
     },
 
@@ -322,7 +327,7 @@ export const usePreferencesStore = defineStore('preferences', {
         const name = entryName as string
         this.TOGGLE_VIEW_MODE(name)
         const target = this as unknown as Record<string, unknown>
-        this.DISPATCH_EDITOR_VIEW_STATE({ [name]: target[name] })
+        this.DISPATCH_EDITOR_VIEW_STATE({ [name]: name === 'sourceCode' ? this.effectiveSourceCode : target[name] })
       })
     },
 

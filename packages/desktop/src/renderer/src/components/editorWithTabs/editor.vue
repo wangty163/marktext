@@ -77,6 +77,7 @@
 </template>
 
 <script setup lang="ts">
+import { hasTextExtension } from 'common/textFiles'
 import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
 import log from 'electron-log'
 import {
@@ -250,7 +251,7 @@ const {
   // Edit modes
   typewriter,
   focus,
-  sourceCode
+  effectiveSourceCode: sourceCode
 } = storeToRefs(preferencesStore)
 
 // Editor store refs
@@ -553,6 +554,7 @@ watch(focus, (value) => {
 // items) rather than blanket-enabling everything (#3531).
 watch(sourceCode, (isSource) => {
   const windowId = window.marktext?.env?.windowId ?? -1
+  preferencesStore.DISPATCH_EDITOR_VIEW_STATE({ sourceCode: isSource })
   if (isSource) {
     window.electron.ipcRenderer.send('mt::set-editor-format-menus-enabled', windowId, false)
     return
@@ -564,7 +566,7 @@ watch(sourceCode, (isSource) => {
       window.electron.ipcRenderer.send('mt::set-editor-format-menus-enabled', windowId, true)
     }
   })
-})
+}, { immediate: true })
 
 watch(fontSize, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
@@ -1877,6 +1879,10 @@ onMounted(() => {
     // There is a chance that this event is fired AFTER the tab is switched. If we purely rely on this.currentFile later on
     // it can cause invalid updates. Hence, we need the id to identify changes as part of each tab
     if (!currentFile.value || !editor.value) return
+    // Plain-text tabs are owned by CodeMirror. A reload can also update the
+    // hidden Markdown engine, whose serialization must never dirty or rewrite
+    // the text document (including its final blank lines).
+    if (hasTextExtension(currentFile.value.pathname)) return
     const { id } = currentFile.value
     if (!id) return
     const markdown = editor.value.getMarkdown()

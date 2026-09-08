@@ -6,6 +6,7 @@
 </template>
 
 <script setup lang="ts">
+import { hasTextExtension } from 'common/textFiles'
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
@@ -49,7 +50,7 @@ const cancelTocHighlight = () => {
   clearTocHighlight = null
 }
 
-const { theme, sourceCode } = storeToRefs(preferencesStore)
+const { theme, effectiveSourceCode: sourceCode } = storeToRefs(preferencesStore)
 const { currentFile: currentTab } = storeToRefs(editorStore)
 
 const isValidMuyaIndexCursor = (cursor: unknown): cursor is MuyaIndexCursorLike => {
@@ -165,6 +166,8 @@ const handleFileChange = (payload: unknown) => {
     prepareTabSwitch()
     tabId.value = id
   }
+
+  editor.value.setOption('mode', hasTextExtension(currentTab.value?.pathname || '') ? 'text/plain' : 'markdown-math')
 
   if (typeof newMarkdown === 'string') {
     editor.value.setValue(newMarkdown)
@@ -383,7 +386,7 @@ onMounted(() => {
   // `markdown-math` wraps the standard Markdown mode and delegates `$...$` and
   // `$$...$$` spans to stex so subscript underscores in math do not flip the
   // outer mode into emphasis. See src/renderer/src/codeMirror/markdownMathMode.js.
-  codeMirrorInstance.setOption('mode', 'markdown-math')
+  codeMirrorInstance.setOption('mode', hasTextExtension(currentTab.value?.pathname || '') ? 'text/plain' : 'markdown-math')
 
   codeMirrorInstance.on('contextmenu', (_cm: CMInstance, event: Event) => {
     event.preventDefault()

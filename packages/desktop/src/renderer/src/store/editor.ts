@@ -1,3 +1,4 @@
+import { hasTextExtension } from 'common/textFiles'
 import equal from 'deep-equal'
 import bus from '../bus'
 import { getUniqueId, deepClone } from '../util'
@@ -1421,7 +1422,11 @@ export const useEditorStore = defineStore('editor', {
 
       const { filename, pathname, markdown: oldMarkdown, trimTrailingNewline } = tab
 
-      markdown = adjustTrailingNewlines(markdown, trimTrailingNewline)
+      // Plain text owns its exact whitespace; Markdown's final-newline policy
+      // must not truncate or append lines when editing SQL, logs, or text files.
+      if (!hasTextExtension(pathname)) {
+        markdown = adjustTrailingNewlines(markdown, trimTrailingNewline)
+      }
       tab.markdown = markdown
 
       if (oldMarkdown.length === 0 && markdown.length === 1 && markdown[0] === '\n') {

@@ -11,7 +11,7 @@ import {
 } from 'electron'
 import log from 'electron-log'
 import { isDirectory, isFile, exists } from 'common/filesystem'
-import { MARKDOWN_EXTENSIONS, isDangerousExecutableFile, isMarkdownFile } from 'common/filesystem/paths'
+import { EDITABLE_EXTENSIONS, isDangerousExecutableFile, isEditableFile } from 'common/filesystem/paths'
 import { checkUpdates, userSetting } from './marktext'
 import { showTabBar } from './view'
 import { COMMANDS } from '../../commands'
@@ -467,7 +467,7 @@ ipcMain.on('mt::window::drop', async(e, fileList: string[]) => {
     return
   }
   for (const file of fileList) {
-    if (isMarkdownFile(file)) {
+    if (isEditableFile(file)) {
       openFileOrFolder(win, file)
       continue
     }
@@ -623,7 +623,7 @@ ipcMain.on('mt::format-link-click', async(e, { data, dirname }: FormatLinkPayloa
   if (pathname) {
     // decodeURIComponent() CommonMark #503, allow percent encoded path names to open files. https://github.com/marktext/marktext/issues/57
     pathname = path.normalize(decodeURIComponent(pathname))
-    if (isMarkdownFile(pathname)) {
+    if (isEditableFile(pathname)) {
       const innerWin = BrowserWindow.fromWebContents(e.sender)
       if (innerWin) {
         openFileOrFolder(innerWin, pathname)
@@ -729,8 +729,8 @@ export const openFile = async(win: BrowserWindow | null): Promise<void> => {
     properties: ['openFile', 'multiSelections'],
     filters: [
       {
-        name: 'Markdown document',
-        extensions: [...MARKDOWN_EXTENSIONS]
+        name: 'Markdown / Text document',
+        extensions: [...EDITABLE_EXTENSIONS]
       }
     ]
   })

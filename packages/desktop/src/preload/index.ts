@@ -1,3 +1,4 @@
+import { hasEditableExtension } from '../common/textFiles'
 // Sandboxed preload: only `electron` can be required, and only a tiny subset of
 // `process` is available (platform, versions, env). Everything else lives in
 // the main process and is reached via IPC.
@@ -112,24 +113,8 @@ const windowControlAPI = {
 // in the preload keeps them synchronous so existing call sites like
 // `tabs.find(t => isSamePathSync(t.pathname, ...))` keep returning the right
 // item instead of a truthy Promise.
-const MARKDOWN_EXTENSIONS = [
-  'markdown',
-  'mdown',
-  'mkdn',
-  'md',
-  'mkd',
-  'mdwn',
-  'mdtxt',
-  'mdtext',
-  'mdx',
-  'text',
-  'txt'
-] as const
-
-const hasMarkdownExtension = (filename: string): boolean => {
-  if (!filename || typeof filename !== 'string') return false
-  return MARKDOWN_EXTENSIONS.some((ext) => filename.toLowerCase().endsWith(`.${ext}`))
-}
+// This legacy bridge predicate describes files editable in the project tree.
+const hasMarkdownExtension = hasEditableExtension
 
 const isChildOfDirectory = (dir: string, child: string): boolean => {
   if (!dir || !child) return false

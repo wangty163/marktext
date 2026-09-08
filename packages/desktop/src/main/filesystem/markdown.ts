@@ -4,7 +4,7 @@ import log from 'electron-log'
 import iconv from 'iconv-lite'
 import { LINE_ENDING_REG, LF_LINE_ENDING_REG, CRLF_LINE_ENDING_REG } from '../config'
 import { isDirectory2 } from 'common/filesystem'
-import { isMarkdownFile } from 'common/filesystem/paths'
+import { isEditableFile } from 'common/filesystem/paths'
 import { normalizeAndResolvePath, writeFile } from '../filesystem'
 import { guessEncoding } from './encoding'
 import type { Encoding } from 'common/encoding'
@@ -44,15 +44,15 @@ const convertLineEndings = (text: string, lineEnding: LineEnding): string => {
 }
 
 /**
- * Special function to normalize directory and markdown file paths.
+ * Special function to normalize directory and supported text file paths.
  * Returns the normalized path and a directory hint, or null if it's not a
- * directory or markdown file.
+ * directory or supported text file.
  */
 export const normalizeMarkdownPath = (
   pathname: string
 ): { isDir: boolean; path: string } | null => {
   const isDir = isDirectory2(pathname)
-  if (isDir || isMarkdownFile(pathname)) {
+  if (isDir || isEditableFile(pathname)) {
     const resolved = normalizeAndResolvePath(pathname)
     if (resolved) {
       return { isDir, path: resolved }

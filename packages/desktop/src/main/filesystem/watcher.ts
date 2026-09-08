@@ -1,9 +1,10 @@
+import { hasEditableExtension } from 'common/textFiles'
 import path from 'path'
 import fsPromises from 'fs/promises'
 import log from 'electron-log'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { exists } from 'common/filesystem'
-import { hasMarkdownExtension, checkPathExcludePattern } from 'common/filesystem/paths'
+import { checkPathExcludePattern } from 'common/filesystem/paths'
 import { getUniqueId } from '../utils'
 import { loadMarkdownFile } from '../filesystem/markdown'
 import { isLinux, isOsx } from '../config'
@@ -50,7 +51,7 @@ const add = async(
   const stats = await fsPromises.stat(pathname)
   const birthTime = stats.birthtime
   const mtimeMs = stats.mtimeMs
-  const isMarkdown = hasMarkdownExtension(pathname)
+  const isMarkdown = hasEditableExtension(pathname)
   const file: {
     pathname: string
     name: string
@@ -129,7 +130,7 @@ const change = async(
     return
   }
 
-  const isMarkdown = hasMarkdownExtension(pathname)
+  const isMarkdown = hasEditableExtension(pathname)
   if (isMarkdown) {
     try {
       const [data, stats] = await Promise.all([
@@ -220,7 +221,7 @@ class Watcher {
         if (fileInfo.isDirectory()) {
           return false
         }
-        return !hasMarkdownExtension(pathname)
+        return !hasEditableExtension(pathname)
       },
       ignoreInitial: type === 'file',
       persistent: true,

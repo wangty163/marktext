@@ -52,6 +52,17 @@ describe('useEditorStore LISTEN_FOR_CONTENT_CHANGE — source-mode dirty trackin
     return tab
   }
 
+  it('preserves every final blank line when a plain-text tab changes', () => {
+    const store = useEditorStore()
+    const tab = makeSavedTab(store)
+    tab.pathname = '/x/query.sql'
+    tab.filename = 'query.sql'
+    const text = 'SELECT a_b;\n\n\n'
+    store.LISTEN_FOR_CONTENT_CHANGE({ id: tab.id, markdown: text })
+    expect(tab.markdown).toBe(text)
+    expect(tab.isSaved).toBe(false)
+  })
+
   it('marks the tab unsaved when source-mode content changes (no history in payload)', () => {
     const store = useEditorStore()
     const tab = makeSavedTab(store)

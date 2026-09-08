@@ -96,6 +96,12 @@ fileAssociations:
     mimeType: text/markdown
     role: Editor
     icon: icons/md.ico
+  - ext: [txt, text, sql, log, csv, tsv, json, yaml, yml, toml, ini, conf, cfg]
+    name: Text
+    description: Text document
+    mimeType: text/plain
+    role: Editor
+
 win:
   executableName: marktext
   artifactName: 'marktext-win-${arch}-${version}.${ext}'

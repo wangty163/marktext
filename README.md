@@ -126,6 +126,18 @@ MarkText is an open-source Markdown editor powered by the support of its communi
 - Various editing modes: **Source Code mode**, **Typewriter mode**, **Focus mode**.
 - Paste images directly from clipboard.
 
+
+### Opening documents
+
+Launching MarkText without a file opens a blank document by default. Session restore
+remains available in Preferences → General → Startup action; existing preferences are
+preserved when upgrading.
+
+Open, drag and drop, Finder “Open With”, and the project tree support `.sql`, `.txt`,
+`.text`, `.log`, `.csv`, `.tsv`, `.json`, `.yaml`, `.yml`, `.toml`, `.ini`, `.conf`, and
+`.cfg` alongside Markdown files. These text files use the source editor and retain
+literal text when saved, including Markdown-like characters and whitespace.
+
 ## Download and Installation
 
 ![platform](https://img.shields.io/static/v1.svg?label=Platform&message=Linux%20x64%20|%20macOS%20x64%2Farm64%20|%20Windows%20x64%2Farm64&style=for-the-badge)
