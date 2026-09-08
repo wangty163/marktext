@@ -8,6 +8,8 @@ const __dirname = dirname(__filename)
 export default defineConfig({
   test: {
     environment: 'jsdom',
+    // Node 25's native Web Storage shadows the DOM environment's storage.
+    execArgv: Number(process.versions.node.split('.')[0]) >= 25 ? ['--no-experimental-webstorage'] : [],
     include: ['test/unit/specs/**/*.spec.ts'],
     globals: true
   },

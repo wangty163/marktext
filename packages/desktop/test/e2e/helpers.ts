@@ -3,6 +3,9 @@ import { _electron, type ElectronApplication, type Page } from 'playwright'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { trackTestApplication, terminateTestApplication } from './appLifecycle'
+
+export { closeTestApplication, terminateTestApplication } from './appLifecycle'
 
 const projectRoot = path.resolve(__dirname, '../..')
 
@@ -88,11 +91,21 @@ export const launchElectron = async(
     env,
     timeout: 30000
   })
-  if (options.suppressErrorDialog) await installRendererErrorCounter(app)
-  const page = await app.firstWindow()
-  await page.waitForLoadState('domcontentloaded')
-  await new Promise((resolve) => setTimeout(resolve, 500))
-  return { app, page }
+  trackTestApplication(app)
+  try {
+    if (options.suppressErrorDialog) await installRendererErrorCounter(app)
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    return { app, page }
+  } catch (error) {
+    try {
+      terminateTestApplication(app)
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Electron test setup and cleanup both failed')
+    }
+    throw error
+  }
 }
 
 // Capture renderer-process errors that would otherwise pop the "Unexpected
@@ -200,6 +213,18 @@ export const clickMenuById = async(app: ElectronApplication, id: string): Promis
     // current DOM selection, breaking format/selection-driven menu actions.
     item.click(undefined, win, win ? win.webContents : undefined)
   }, id)
+}
+
+// CDP key events do not trigger macOS application-menu accelerators. Native
+// Electron input exercises the same Save menu command as Cmd/Ctrl+S.
+export const saveWithKeyboard = async(app: ElectronApplication): Promise<void> => {
+  await app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
+    if (!win) throw new Error('No test window is available for Save')
+    const modifiers: ('meta' | 'control')[] = [process.platform === 'darwin' ? 'meta' : 'control']
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'S', modifiers })
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'S', modifiers })
+  })
 }
 
 export const waitForEditor = async(page: Page, timeout = 15000): Promise<void> => {
