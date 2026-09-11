@@ -269,6 +269,76 @@ describe('content arrowHandler — cross-block navigation down', () => {
     });
 });
 
+describe('content arrowHandler — empty paragraphs prefer the start', () => {
+    it.each(['ArrowUp', 'ArrowDown'] as const)('%s from an empty paragraph moves to offset 0', async (key) => {
+        const muya = bootMuyaState([
+            { name: 'paragraph', text: 'before' },
+            { name: 'paragraph', text: '' },
+            { name: 'paragraph', text: 'after' },
+        ]);
+        const empty = contentByText(muya, '');
+        empty.setCursor(0, 0, true);
+
+        pressVertical(empty, key);
+        await flush();
+
+        const target = contentByText(muya, key === 'ArrowUp' ? 'before' : 'after');
+        expect(target.getCursor()?.start.offset).toBe(0);
+        expect(target.getCursor()?.end.offset).toBe(0);
+        expect(muya.editor.verticalCursorOffset).toBe(0);
+    });
+
+    it.each([
+        { key: 'ArrowDown', offset: 6 },
+        { key: 'ArrowDown', offset: 10 },
+        { key: 'ArrowUp', offset: 6 },
+        { key: 'ArrowUp', offset: 10 },
+    ] as const)('$key resets column $offset when crossing an empty paragraph', async ({ key, offset }) => {
+        const texts = ['first-long', '', 'last-longer'];
+        const muya = bootMuyaState((key === 'ArrowDown' ? texts : [...texts].reverse())
+            .map(text => ({ name: 'paragraph', text })));
+        const before = muya.getState();
+        const first = contentByText(muya, 'first-long');
+        first.setCursor(offset, offset, true);
+
+        pressVertical(first, key);
+        await flush();
+        const empty = contentByText(muya, '');
+        expect(empty.getCursor()?.start.offset).toBe(0);
+        expect(muya.editor.verticalCursorOffset).toBe(0);
+
+        pressVertical(empty, key);
+        await flush();
+        const last = contentByText(muya, 'last-longer');
+        expect(last.getCursor()?.start.offset).toBe(0);
+        expect(last.getCursor()?.end.offset).toBe(0);
+
+        const reverseKey = key === 'ArrowDown' ? 'ArrowUp' : 'ArrowDown';
+        pressVertical(last, reverseKey);
+        await flush();
+        expect(empty.getCursor()?.start.offset).toBe(0);
+        pressVertical(empty, reverseKey);
+        await flush();
+        expect(first.getCursor()?.start.offset).toBe(0);
+        expect(muya.getState()).toEqual(before);
+    });
+
+    it('returns from an appended empty paragraph to the start of the previous paragraph', async () => {
+        const muya = bootMuya('alpha\n');
+        const alpha = contentByText(muya, 'alpha');
+        alpha.setCursor(alpha.text.length, alpha.text.length, true);
+
+        pressVertical(alpha, 'ArrowDown');
+        await flush();
+        const empty = contentByText(muya, '');
+        expect(empty.getCursor()?.start.offset).toBe(0);
+
+        pressVertical(empty, 'ArrowUp');
+        await flush();
+        expect(alpha.getCursor()?.start.offset).toBe(0);
+    });
+});
+
 describe('content arrowHandler — trailing-paragraph creation at document end', () => {
     it('arrowDown at the end of the LAST block appends a new empty paragraph and lands the caret in it', async () => {
         const muya = bootMuya('alpha\n\nbeta\n');

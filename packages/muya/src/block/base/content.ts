@@ -453,9 +453,15 @@ class Content extends TreeNode {
 
     protected getVerticalCursorOffset(target: Content, offset: number): number {
         const { editor } = this.muya;
-        editor.verticalCursorOffset ??= offset === this.text.length
-            ? Number.POSITIVE_INFINITY
-            : offset;
+        // An empty line is a new column-zero anchor, not a remembered line end.
+        if (this.text.length === 0 || target.text.length === 0) {
+            editor.verticalCursorOffset = 0;
+        }
+        else {
+            editor.verticalCursorOffset ??= offset === this.text.length
+                ? Number.POSITIVE_INFINITY
+                : offset;
+        }
 
         return Math.min(editor.verticalCursorOffset, target.text.length);
     }

@@ -76,6 +76,19 @@ function flush(): Promise<void> {
     return new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 }
 
+function pressVertical(content: Content, key: 'ArrowUp' | 'ArrowDown'): void {
+    const event = { key, bubbles: true, cancelable: true };
+    content.domNode!.dispatchEvent(new KeyboardEvent('keydown', event));
+    content.domNode!.dispatchEvent(new KeyboardEvent('keyup', event));
+}
+
+function expectCaretAt(content: Content, offset: number): void {
+    expect(content.getCursor()).toMatchObject({
+        start: { offset },
+        end: { offset },
+    });
+}
+
 describe('tableCellContent arrow navigation', () => {
     it('arrowDown from a header cell lands the caret in the same column of the body row', async () => {
         // Cells in document order: [ab, cd] (header), [ef, gh] (body).
@@ -171,5 +184,93 @@ describe('tableCellContent arrow navigation', () => {
         const cursor = headerCol1.getCursor();
         expect(cursor).not.toBeNull();
         expect(cursor!.start.offset).toBe(0);
+    });
+
+    describe.each(['ArrowUp', 'ArrowDown'] as const)('%s across empty cells', (key) => {
+        it('moves from an empty cell to the start of the nonempty cell in the same column', async () => {
+            const muya = bootMuya('| left | header |\n| --- | --- |\n| left | |\n| left | body |\n');
+            const cells = tableCells(muya);
+            const empty = cells[3];
+            const target = cells[key === 'ArrowUp' ? 1 : 5];
+            expect(empty.text).toBe('');
+            expect(target.text).toBe(key === 'ArrowUp' ? 'header' : 'body');
+            muya.editor.activeContentBlock = empty;
+            empty.setCursor(0, 0, true);
+
+            pressVertical(empty, key);
+            await flush();
+
+            expectCaretAt(target, 0);
+            expect(muya.editor.verticalCursorOffset).toBe(0);
+        });
+
+        it.each([3, 'end'] as const)('forgets offset %s after crossing an empty cell', async (offset) => {
+            const muya = bootMuya(
+                '| left | abcdef |\n| --- | --- |\n| left | hijklmnop |\n| left | |\n| left | qrstuvwxy |\n| left | zabcde |\n',
+            );
+            const column = tableCells(muya).filter((_, index) => index % 2 === 1);
+            if (key === 'ArrowUp')
+                column.reverse();
+            const [source, remembered, empty, target] = column;
+            expect(empty.text).toBe('');
+            expect(target.text.length).toBeGreaterThan(3);
+            const startOffset = offset === 'end' ? source.text.length : offset;
+            muya.editor.activeContentBlock = source;
+            source.setCursor(startOffset, startOffset, true);
+
+            // Establish real vertical memory before entering the empty cell;
+            // resetting the selection between keypresses would hide stale memory.
+            pressVertical(source, key);
+            await flush();
+            expectCaretAt(remembered, offset === 'end' ? remembered.text.length : offset);
+            expect(muya.editor.verticalCursorOffset).toBe(
+                offset === 'end' ? Number.POSITIVE_INFINITY : offset,
+            );
+
+            pressVertical(remembered, key);
+            await flush();
+            expectCaretAt(empty, 0);
+            expect(muya.editor.verticalCursorOffset).toBe(0);
+
+            pressVertical(empty, key);
+            await flush();
+            expectCaretAt(target, 0);
+            expect(muya.editor.verticalCursorOffset).toBe(0);
+        });
+
+        it.each(['empty', 3, 'end'] as const)(
+            'exits an empty header/body cell at paragraph start (starting at %s)',
+            async (start) => {
+                const muya = bootMuya(
+                    'intro\n\n| left | |\n| --- | --- |\n| left | abcdef |\n| left | |\n\noutro\n',
+                );
+                const cells = tableCells(muya);
+                const empty = cells[key === 'ArrowUp' ? 1 : 5];
+                const source = start === 'empty' ? empty : cells[3];
+                const offset = start === 'end' ? source.text.length : start === 'empty' ? 0 : start;
+                const paragraph = (key === 'ArrowUp'
+                    ? muya.editor.scrollPage!.firstContentInDescendant()
+                    : muya.editor.scrollPage!.lastContentInDescendant()) as Content;
+                expect(empty.text).toBe('');
+                expect(paragraph.blockName).toBe('paragraph.content');
+                expect(paragraph.text).toBe(key === 'ArrowUp' ? 'intro' : 'outro');
+                const before = muya.getState();
+                muya.editor.activeContentBlock = source;
+                source.setCursor(offset, offset, true);
+
+                if (start !== 'empty') {
+                    pressVertical(source, key);
+                    await flush();
+                    expectCaretAt(empty, 0);
+                    expect(muya.editor.verticalCursorOffset).toBe(0);
+                }
+
+                pressVertical(empty, key);
+                await flush();
+                expectCaretAt(paragraph, 0);
+                expect(muya.editor.verticalCursorOffset).toBe(0);
+                expect(muya.getState()).toEqual(before);
+            },
+        );
     });
 });
