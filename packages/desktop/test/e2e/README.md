@@ -10,6 +10,16 @@ Only its relaunch case closes and opens the application again. The suite is seri
 a failed case terminates the isolated test process and skips dependent cases.
 Each case creates its own files, and the external-reload case restores auto-save.
 
+`scroll-up-arrow.spec.ts` launches one isolated application for all nine cases and
+closes it after the suite. Each case restores its fixture document and initial
+selection; empty-line cases also reset scroll position and the remembered vertical
+column. Real keypresses, DOM caret assertions, and on-disk save checks still run for
+every case. The JSON report records `electron-pid` annotations to verify process
+reuse. A failed case terminates only the tracked test process; Playwright retains
+its default worker-restart behavior rather than skipping the remaining cases.
+Source-mode fixture replacement preserves undo history, so this reset is scoped to
+navigation tests, not undo/redo or clean-start tests.
+
 - `saveWithKeyboard(app)` sends native Electron Cmd/Ctrl+S input, including the
   application-menu accelerator on macOS. Follow it with an assertion on the saved
   file; dispatching the key alone does not prove persistence.

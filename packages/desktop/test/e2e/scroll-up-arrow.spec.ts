@@ -3,26 +3,65 @@ import type { ElectronApplication, Page } from 'playwright'
 import { readFileSync } from 'node:fs'
 import {
   closeTestApplication, enterSourceMode, focusEditor, getMarkdownContent,
-  launchWithMarkdown, saveWithKeyboard
+  launchWithMarkdown, saveWithKeyboard, setSourceMarkdown, terminateTestApplication
 } from './helpers'
+
+let app: ElectronApplication
+let page: Page
+let filePath: string
+let running = false
+
+// Share the isolated process, not document state. Each describe resets its fixture.
+test.beforeAll(async() => {
+  ;({ app, page, filePath } = await launchWithMarkdown())
+  running = true
+})
+
+test.beforeEach(async() => {
+  test.info().annotations.push({ type: 'electron-pid', description: String(app.process().pid) })
+})
+
+test.afterEach(async() => {
+  const testInfo = test.info()
+  if (testInfo.status !== testInfo.expectedStatus) {
+    terminateTestApplication(app)
+    running = false
+    return
+  }
+  try {
+    // Save without reparsing empty paragraphs as part of cleanup.
+    await enterSourceMode(page, app)
+    const markdown = await getMarkdownContent(page, app)
+    await saveWithKeyboard(app)
+    await expect.poll(() => readFileSync(filePath, 'utf8')).toBe(markdown)
+  } catch (error) {
+    try {
+      terminateTestApplication(app)
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Save verification and test cleanup both failed')
+    } finally {
+      running = false
+    }
+    throw error
+  }
+})
+
+test.afterAll(async() => {
+  try {
+    if (running) await closeTestApplication(app)
+  } finally {
+    running = false
+  }
+})
 
 // #3329 — moving the caret DOWN auto-scrolls the view (the #628 handler), but
 // moving it UP did not, so the caret slid above the viewport. The fix adds the
 // symmetric upward scroll.
 test.describe('Arrow-up scrolls the document (#3329)', () => {
-  let app: ElectronApplication
-  let page: Page
-
-  test.beforeAll(async() => {
+  test.beforeEach(async() => {
     const md = `${Array.from({ length: 120 }, (_, i) => `Paragraph ${i + 1}`).join('\n\n')}\n`
-    const launched = await launchWithMarkdown(md)
-    app = launched.app
-    page = launched.page
+    await setSourceMarkdown(page, app, md)
     await focusEditor(page)
-  })
-
-  test.afterAll(async() => {
-    if (app) await app.close()
   })
 
   const scrollTop = () =>
@@ -52,23 +91,14 @@ test.describe('Arrow-up scrolls the document (#3329)', () => {
 test.describe('Empty lines reset the vertical caret column', () => {
   const texts = ['abcdefghij', 'xy', 'abcdefghijklmn']
   const contentSelector = '.editor-component span.mu-paragraph-content'
-  let app: ElectronApplication | undefined
-  let page: Page
-  let filePath: string
 
-  test.afterEach(async() => {
-    const running = app
-    app = undefined
-    if (!running) return
-    try {
-      // Keep source mode open so teardown saves without reparsing the test document.
-      await enterSourceMode(page, running)
-      const markdown = await getMarkdownContent(page, running)
-      await saveWithKeyboard(running)
-      await expect.poll(() => readFileSync(filePath, 'utf8')).toBe(markdown)
-    } finally {
-      await closeTestApplication(running)
-    }
+  test.beforeEach(async() => {
+    await setSourceMarkdown(page, app, `${texts.join('\n\n')}\n`)
+    await expect(page.locator(contentSelector)).toHaveText(texts)
+    await page.evaluate(() => {
+      const root = document.querySelector('.editor-component') as HTMLElement
+      root.scrollTop = 0
+    })
   })
 
   const expectCaret = async(index: number, offset: number) => {
@@ -105,11 +135,6 @@ test.describe('Empty lines reset the vertical caret column', () => {
   }
 
   const start = async(index: number, atEnd: boolean) => {
-    const launched = await launchWithMarkdown(`${texts.join('\n\n')}\n`)
-    app = launched.app
-    page = launched.page
-    filePath = launched.filePath
-    await expect(page.locator(contentSelector)).toHaveText(texts)
     // Only initialization injects a selection; every subsequent move is a real keypress.
     await page.locator(contentSelector).nth(index).evaluate((content, end) => {
       const root = document.querySelector('.editor-component') as HTMLElement
@@ -131,6 +156,8 @@ test.describe('Empty lines reset the vertical caret column', () => {
       document.dispatchEvent(new Event('selectionchange'))
       root.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }))
     }, atEnd)
+    // Source-mode replacement preserves the engine, including its preferred column.
+    await page.keyboard.press('Escape')
     await expectCaret(index, atEnd ? texts[index].length : 0)
   }
 
