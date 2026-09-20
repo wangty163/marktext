@@ -136,7 +136,8 @@ quotes, and block-conversion shortcuts retain their structural Enter behavior.
 
 ### Opening documents
 
-Launching MarkText without a file opens a blank document by default. Session restore
+Launching MarkText without a file opens a blank document titled **MarkText** by default.
+The document name appears after typing or opening a file. Session restore
 remains available in Preferences → General → Startup action; existing preferences are
 preserved when upgrading.
 

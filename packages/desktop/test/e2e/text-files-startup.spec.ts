@@ -5,7 +5,7 @@ import path from 'node:path'
 import type { ElectronApplication, Page } from 'playwright'
 import {
   launchElectron, waitForEditor, waitForMenuReady, clickMenuById, sendIpcToRenderer,
-  saveWithKeyboard, closeTestApplication, terminateTestApplication
+  saveWithKeyboard, closeTestApplication, terminateTestApplication, placeCaretInEditor
 } from './helpers'
 
 // Ordinary file cases share a window; only the relaunch regression restarts it.
@@ -44,13 +44,32 @@ const openFiles = async(...files: string[]) => {
   await page.evaluate(files => window.electron.ipcRenderer.send('mt::window::drop', files), files)
 }
 
+const expectBlankTitle = async() => {
+  await expect(page).toHaveTitle('MarkText')
+  await expect(page.locator('.title-bar .title')).toHaveText('MarkText')
+  await expect.poll(() => app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].getTitle()
+  )).toBe('MarkText')
+}
+
 test('icon launch defaults to a blank document', async() => {
   await waitForEditor(page)
   const profile = await app.evaluate(({ app }) => app.getPath('userData'))
   const preferences = JSON.parse(fs.readFileSync(path.join(profile, 'preferences.json'), 'utf8'))
   expect(preferences.startUpAction).toBe('blank')
   await expect(page.locator('.editor-component')).toHaveText('')
+  await expectBlankTitle()
   await page.screenshot({ path: test.info().outputPath('blank-startup.png') })
+})
+
+test('an untitled document name appears after typing and clears on undo', async() => {
+  await placeCaretInEditor(page)
+  await page.keyboard.type('x')
+  await expect(page).toHaveTitle('Untitled-1')
+  await expect(page.locator('.title-bar .filename')).toHaveText('Untitled-1')
+  await sendIpcToRenderer(app, 'mt::editor-edit-action', 'undo')
+  await expect(page.locator('.editor-component')).toHaveText('')
+  await expectBlankTitle()
 })
 
 for (const ext of ['sql', 'txt', 'json']) {
@@ -60,6 +79,8 @@ for (const ext of ['sql', 'txt', 'json']) {
     fs.writeFileSync(file, original)
     await openFiles(file)
     await waitForMenuReady(app)
+    await expect(page).toHaveTitle(`sample.${ext}`)
+    await expect(page.locator('.title-bar .filename')).toHaveText(`sample.${ext}`)
     await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
     const read = () => page.evaluate(() => {
       const cm = (document.querySelector('.source-code .CodeMirror') as Element & { CodeMirror: { getValue(): string; getOption(name: string): string } }).CodeMirror
@@ -155,5 +176,17 @@ test('relaunch ignores recently opened documents and opens a blank page', async(
   running = true
   await waitForEditor(page)
   await expect(page.locator('.editor-component')).toHaveText('')
-  await expect(page).not.toHaveTitle(/previous/)
+  await expectBlankTitle()
+  await page.screenshot({ path: test.info().outputPath('blank-relaunch-title.png') })
+})
+
+test('an empty saved file still shows its real filename', async() => {
+  const file = path.join(dir, 'empty.md')
+  fs.writeFileSync(file, '')
+  await openFiles(file)
+  await expect(page.locator('.editor-component')).toHaveText('')
+  await expect(page).toHaveTitle('empty.md')
+  await expect(page.locator('.title-bar .filename')).toHaveText('empty.md')
+  await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, '')
+  await expectBlankTitle()
 })

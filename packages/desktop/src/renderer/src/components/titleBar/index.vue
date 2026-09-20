@@ -260,20 +260,14 @@ const showTitleBar = computed(() => {
 })
 
 watch(
-  () => props.filename,
-  (value) => {
+  [() => props.filename, () => props.project?.name],
+  ([filename, projectName]) => {
     // Set filename when hover on dock
-    const hasOpenFolder = !!(props.project && props.project.name)
-    const projectName = props.project?.name ?? ''
-    let title = ''
-    if (value) {
-      title = hasOpenFolder ? `${value} - ${projectName}` : `${value}`
-    } else {
-      title = hasOpenFolder ? projectName : ''
-    }
-
-    document.title = title
-  }
+    document.title = filename
+      ? projectName ? `${filename} - ${projectName}` : filename
+      : projectName || 'MarkText'
+  },
+  { immediate: true }
 )
 
 const handleWordClick = () => {

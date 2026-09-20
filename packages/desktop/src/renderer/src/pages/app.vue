@@ -84,7 +84,10 @@ const { projectTree } = storeToRefs(projectStore)
 const { currentFile } = storeToRefs(editorStore)
 
 const pathname = computed(() => currentFile.value?.pathname)
-const filename = computed(() => currentFile.value?.filename)
+const filename = computed(() => {
+  const file = currentFile.value
+  return file && (file.pathname || file.markdown.trim()) ? file.filename : undefined
+})
 const isSaved = computed(() => currentFile.value?.isSaved)
 // `markdown` is read by `<editor-with-tabs>` whose prop is `required: true`.
 // In template space we render that subtree only when `hasCurrentFile` is set,
