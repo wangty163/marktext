@@ -200,6 +200,19 @@ class CodeBlockContent extends Content {
     private _lastLineCount = -1;
     private _lineNumberResizeObserver: ResizeObserver | null = null;
 
+    /**
+     * Fill the line-number gutter without rewriting the code text DOM.
+     *
+     * `CodeBlock.create` schedules a gutter seed for the next frame. Running the
+     * full `update()` there replaces `innerHTML`, which destroys a caret the
+     * user has already moved into the block: the browser drops the selection to
+     * offset 0 and the next keystroke is inserted at the front, reordering fast
+     * input (`code` came out as `odec`).
+     */
+    refreshLineNumbers() {
+        this._updateLineNumbers(this.text);
+    }
+
     private _updateLineNumbers(text: string) {
         if (!this.muya.options.codeBlockLineNumbers)
             return;

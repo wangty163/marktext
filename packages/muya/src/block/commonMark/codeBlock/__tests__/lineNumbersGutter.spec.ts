@@ -42,6 +42,30 @@ function nextFrame(): Promise<void> {
     return new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 }
 
+// The `codeblock.content` leaf of the first code block in the document.
+interface CodeContentProbe {
+    domNode: HTMLElement | null;
+    setCursor: (begin: number, end: number, needUpdate?: boolean) => void;
+    getCursor: () => { start: { offset: number } } | null;
+}
+
+function findCodeContent(muya: Muya): CodeContentProbe {
+    let target: CodeContentProbe | null = null;
+    const visit = (block: {
+        constructor: { blockName?: string };
+        children?: { forEach: (cb: (b: unknown) => void) => void };
+    }) => {
+        if (block.constructor.blockName === 'codeblock.content' && target === null)
+            target = block as unknown as CodeContentProbe;
+        block.children?.forEach(child => visit(child as typeof block));
+    };
+    visit(muya.editor.scrollPage as unknown as Parameters<typeof visit>[0]);
+    if (target === null)
+        throw new Error('no codeblock.content block found');
+
+    return target;
+}
+
 const THREE_LINE_FENCE = '```js\nconst a = 1\nconst b = 2\nconst c = 3\n```\n';
 
 describe('code-block line-numbers gutter', () => {
@@ -112,6 +136,30 @@ describe('code-block line-numbers gutter', () => {
             await nextFrame();
             await nextFrame();
             expect(wrapper.childElementCount).toBe(2);
+        });
+
+        // The seed used to call the content block's full `update()`, which
+        // rewrites `innerHTML` one frame after the block is created. A user who
+        // typed into the block before that frame landed lost the caret to
+        // offset 0, so the next character was inserted at the front and fast
+        // input came out reordered (`code` -> `odec`).
+        it('the first-render gutter seed leaves the code text and caret untouched', async () => {
+            const muya = bootMuya('```\nsolo\n```\n', { codeBlockLineNumbers: true });
+            const wrapper = muya.domNode.querySelector<HTMLElement>('.mu-line-numbers-rows')!;
+            const content = findCodeContent(muya);
+            content.setCursor(4, 4, true);
+            const textNodeBefore = content.domNode!.firstChild;
+            expect(textNodeBefore).not.toBeNull();
+
+            await nextFrame();
+            await nextFrame();
+
+            // The gutter still fills on first render...
+            expect(wrapper.childElementCount).toBe(1);
+            // ...but the text node the caret sits in is the same node, and the
+            // caret has not moved.
+            expect(content.domNode!.firstChild).toBe(textNodeBefore);
+            expect(content.getCursor()?.start.offset).toBe(4);
         });
     });
 

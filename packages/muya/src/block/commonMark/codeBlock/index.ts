@@ -37,9 +37,16 @@ class CodeBlock extends Parent {
             // The gutter fills from CodeBlockContent.update(), a no-op until the
             // tree is wired. The language-load callback below re-runs it, but
             // language-less / unknown-language / indented blocks never load one —
-            // seed them here so first render fills the gutter regardless of language.
+            // seed them here so first render fills the gutter regardless of
+            // language. Refresh the gutter only: a full update() rewrites
+            // innerHTML on the next frame, which destroys a caret the user has
+            // already placed in the block and sends the next keystroke to
+            // offset 0 (fast input came out reordered, `code` -> `odec`).
             requestAnimationFrame(() => {
-                codeBlock.lastContentInDescendant()?.update();
+                const content = codeBlock.lastContentInDescendant() as
+                    | { refreshLineNumbers?: () => void }
+                    | null;
+                content?.refreshLineNumbers?.();
             });
         }
 
