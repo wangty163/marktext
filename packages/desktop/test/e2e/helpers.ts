@@ -497,3 +497,65 @@ export const sendIpcToRenderer = async(
     { channel, args }
   )
 }
+
+/**
+ * Page coordinates just after the last visible character of a block, for clicks
+ * that have to look like a user putting the caret at the end of a line. Returns
+ * null when the selector matches nothing or the block has no text.
+ */
+export const endOfBlockPoint = async(
+  page: Page,
+  selector: string
+): Promise<{ x: number; y: number } | null> =>
+  page.evaluate((sel) => {
+    const hosts = Array.from(document.querySelectorAll(sel)) as HTMLElement[]
+    const host = hosts[hosts.length - 1]
+    if (!host) return null
+    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT)
+    let last: Text | null = null
+    let node: Node | null
+    while ((node = walker.nextNode())) {
+      if (((node.textContent ?? '').split('\u200B').join('')).length > 0) last = node as Text
+    }
+    const target = last ?? (host.firstChild as Text | null)
+    if (!target) {
+      // An empty block has no text node to measure; aim at the start of its own
+      // box, which is where a click would put the caret.
+      const box = host.getBoundingClientRect()
+      return box.height > 0 ? { x: box.x + 3, y: box.y + box.height / 2 } : null
+    }
+    const range = document.createRange()
+    const text = target.textContent ?? ''
+    // A caret anchor holds only a zero-width space, so the meaningful position
+    // is before it, not after.
+    const offset = text.split('\u200B').join('').length
+    range.setStart(target, offset)
+    range.collapse(true)
+    const rect = range.getBoundingClientRect()
+    if (rect.height === 0) {
+      const box = host.getBoundingClientRect()
+      return box.height > 0 ? { x: box.x + 3, y: box.y + box.height / 2 } : null
+    }
+    return { x: rect.x + 2, y: rect.y + rect.height / 2 }
+  }, selector)
+
+/**
+ * Layout evidence for the current caret. A collapsed range only paints an
+ * insertion point when it resolves to a position the browser can lay out, so
+ * `rects > 0 && height > 0` is the honest test for "the user can see the
+ * caret" — a screenshot would only show the same thing less precisely.
+ */
+export const caretPaintMetrics = async(
+  page: Page
+): Promise<{ rects: number; height: number; anchorText: string | null; anchorOffset: number | null }> =>
+  page.evaluate(() => {
+    const selection = document.getSelection()
+    if (!selection || selection.rangeCount === 0) { return { rects: 0, height: 0, anchorText: null, anchorOffset: null } }
+    const range = selection.getRangeAt(0)
+    return {
+      rects: range.getClientRects().length,
+      height: range.getBoundingClientRect().height,
+      anchorText: selection.anchorNode?.textContent ?? null,
+      anchorOffset: selection.anchorOffset
+    }
+  })
