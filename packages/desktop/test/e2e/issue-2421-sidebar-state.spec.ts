@@ -52,6 +52,7 @@ test.describe('#2421 sidebar state survives full toggle', () => {
     // main process rather than through Playwright's CDP mouse.
     await dragViaMain(
       app,
+      page,
       { x: box!.x + box!.width / 2, y: box!.y + 80 },
       { x: box!.x + box!.width / 2 + 120, y: box!.y + 80 }
     )

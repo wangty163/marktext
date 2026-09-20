@@ -112,10 +112,32 @@ test('text tabs survive switching to Markdown and receive external reloads', asy
   fs.writeFileSync(markdownFile, '# Markdown document\n')
   await openFiles(file, markdownFile)
   await waitForMenuReady(app)
-  if (!await page.locator('.editor-tabs').isVisible()) await clickMenuById(app, 'tabBarMenuItem')
-  const sqlTab = page.locator('.tabs-container > li').filter({ hasText: 'query.sql' })
-  const mdTab = page.locator('.tabs-container > li').filter({ hasText: 'note.md' })
-  await sqlTab.click({ timeout: 5000 })
+  // Opening two documents reveals the tab bar. Wait for that in the DOM instead
+  // of sampling Playwright's `isVisible()` right away: the immediate sample can
+  // land before the layout update, and the resulting toggle hides the bar again,
+  // leaving every tab at zero size.
+  const tabBarShown = (): Promise<boolean> =>
+    page
+      .waitForFunction(
+        () => {
+          const el = document.querySelector('.editor-tabs') as HTMLElement | null
+          return !!el && el.getBoundingClientRect().height > 0
+        },
+        null,
+        { timeout: 3000 }
+      )
+      .then(() => true)
+      .catch(() => false)
+  if (!(await tabBarShown())) {
+    await clickMenuById(app, 'tabBarMenuItem')
+    await expect(page.locator('.editor-tabs')).toBeVisible({ timeout: 10000 })
+  }
+  // Tab clicks go through the main process like every other click: Playwright's
+  // own actionability check reads CDP layout quads, which come back empty for a
+  // window that is never activated.
+  const sqlTab = '.tabs-container > li[title$="query.sql"]'
+  const mdTab = '.tabs-container > li[title$="note.md"]'
+  await clickViaMain(app, page, sqlTab)
   await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
   await clickViaMain(app, page, '.source-code .CodeMirror')
   // CodeMirror swallows the first keystroke that arrives while it is still
@@ -135,19 +157,35 @@ test('text tabs survive switching to Markdown and receive external reloads', asy
     .toBe('-- edited\n' + original)
   await saveWithKeyboard(app)
   await expect.poll(() => fs.readFileSync(file, 'utf8')).toBe('-- edited\n' + original)
-  await mdTab.click({ timeout: 5000 })
+  await clickViaMain(app, page, mdTab)
   await expect(page.locator('.source-code')).toHaveCount(0)
   await expect(page.locator('.editor-component')).toContainText('Markdown document')
-  await sqlTab.click({ timeout: 5000 })
+  await clickViaMain(app, page, sqlTab)
   await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
   await sendIpcToRenderer(app, 'mt::user-preference', { autoSave: true })
   const updated = 'SELECT updated_column FROM table_name;\n\n\n'
-  fs.writeFileSync(file, updated)
-  await expect.poll(() => page.evaluate(() => {
-    const cm = (document.querySelector('.source-code .CodeMirror') as
-      Element & { CodeMirror: { getValue(): string } }).CodeMirror
-    return cm.getValue()
-  })).toBe(updated)
+  // The watcher occasionally coalesces or drops the first fs event after a tab
+  // opens, so rewrite until the reload lands rather than failing on one miss.
+  const reloadLanded = (): Promise<boolean> =>
+    page
+      .waitForFunction(
+        (expected) => {
+          const cm = (document.querySelector('.source-code .CodeMirror') as
+            Element & { CodeMirror?: { getValue(): string } })?.CodeMirror
+          return !!cm && cm.getValue() === expected
+        },
+        updated,
+        { timeout: 5000 }
+      )
+      .then(() => true)
+      .catch(() => false)
+
+  let sawReload = false
+  for (let attempt = 0; attempt < 3 && !sawReload; attempt++) {
+    fs.writeFileSync(file, updated)
+    sawReload = await reloadLanded()
+  }
+  expect(sawReload, 'external change never reached the editor after three writes').toBe(true)
   await saveWithKeyboard(app)
   await expect.poll(() => fs.readFileSync(file, 'utf8')).toBe(updated)
   await expect(page.locator('.tabs-container > li.unsaved')).toHaveCount(0)

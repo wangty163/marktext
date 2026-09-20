@@ -1,6 +1,19 @@
-import { expect, test } from '@playwright/test'
 import type { ElectronApplication } from 'playwright'
 import type { Page } from 'playwright'
+
+/**
+ * Wait for the renderer to act on an injected click. Muya and CodeMirror move
+ * the selection on the frames after `mouseup`; a keystroke that arrives before
+ * that lands nowhere and the first character is silently dropped.
+ */
+export const settleAfterInput = async(page: Page): Promise<void> => {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      })
+  )
+}
 
 /**
  * Playwright drives mouse events through CDP, which only reaches the renderer
@@ -51,24 +64,52 @@ export const clickViaMain = async(
   selector: string,
   options: MainProcessClickOptions = {}
 ): Promise<void> => {
-  const locator = page.locator(selector).nth(options.nth ?? 0)
-  await locator.waitFor({ state: 'visible', timeout: 10000 })
-  const box = await locator.boundingBox()
-  if (!box) throw new Error(`No bounding box for ${selector}; cannot inject a click`)
+  await page.locator(selector).nth(options.nth ?? 0).waitFor({ state: 'attached', timeout: 10000 })
+
+  // Resolve the box in the page rather than through Playwright's actionability
+  // checks: those rely on CDP layout quads, which come back empty for a window
+  // that is parked off-display and never activated, so a plainly visible element
+  // gets reported as "not visible". Poll because a freshly mounted element can
+  // still be laid out at zero size for a frame or two.
+  const readBox = (): Promise<{ x: number; y: number; width: number; height: number } | null> =>
+    page.evaluate(
+      ({ selector, nth }) => {
+        const el = document.querySelectorAll(selector)[nth] as HTMLElement | undefined
+        if (!el) return null
+        const style = window.getComputedStyle(el)
+        if (style.display === 'none' || style.visibility === 'hidden') return null
+        const r = el.getBoundingClientRect()
+        if (r.width === 0 && r.height === 0) return null
+        return { x: r.x, y: r.y, width: r.width, height: r.height }
+      },
+      { selector, nth: options.nth ?? 0 }
+    )
+
+  const deadline = Date.now() + 10000
+  let box = await readBox()
+  while (!box && Date.now() < deadline) {
+    await page.waitForTimeout(100)
+    box = await readBox()
+  }
+  if (!box) throw new Error(`${selector} never became visible; cannot inject a click`)
+
   const x = Math.round(box.x + (options.position?.x ?? box.width / 2))
   const y = Math.round(box.y + (options.position?.y ?? box.height / 2))
   await sendMouse(app, { x, y })
   if (options.dblClick) await sendMouse(app, { x, y }, 2)
+  await settleAfterInput(page)
 }
 
 /** Click arbitrary page coordinates through the main process. */
 export const clickPointViaMain = async(
   app: ElectronApplication,
+  page: Page,
   point: { x: number; y: number },
   dblClick = false
 ): Promise<void> => {
   await sendMouse(app, { x: Math.round(point.x), y: Math.round(point.y) })
   if (dblClick) await sendMouse(app, { x: Math.round(point.x), y: Math.round(point.y) }, 2)
+  await settleAfterInput(page)
 }
 
 /**
@@ -78,6 +119,7 @@ export const clickPointViaMain = async(
  */
 export const dragViaMain = async(
   app: ElectronApplication,
+  page: Page,
   from: { x: number; y: number },
   to: { x: number; y: number },
   steps = 8
@@ -109,4 +151,5 @@ export const dragViaMain = async(
     }
     send('mouseUp', end.x, end.y, 0)
   }, { start, end, steps })
+  await settleAfterInput(page)
 }
