@@ -245,9 +245,18 @@ class App {
     }
 
     if (args._.length) {
+      // Running from source (`electron <app-dir> …`, as the E2E launcher does)
+      // leaves the application directory itself in the positional arguments.
+      // Treating it as a path to open would replace the configured startup
+      // action with that folder, so skip anything that is the app path.
+      const appPath = app.getAppPath()
       for (const pathname of args._) {
         // Ignore all unknown flags
         if (pathname.startsWith('--')) {
+          continue
+        }
+
+        if (pathname === appPath) {
           continue
         }
 

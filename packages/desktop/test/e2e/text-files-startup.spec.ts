@@ -7,6 +7,7 @@ import {
   launchElectron, waitForEditor, waitForMenuReady, clickMenuById, sendIpcToRenderer,
   saveWithKeyboard, closeTestApplication, terminateTestApplication, placeCaretInEditor
 } from './helpers'
+import { clickViaMain } from './mainProcessInput'
 
 // Ordinary file cases share a window; only the relaunch regression restarts it.
 test.describe.configure({ mode: 'serial' })
@@ -89,11 +90,10 @@ for (const ext of ['sql', 'txt', 'json']) {
     await expect.poll(read).toEqual({ value: original, mode: 'text/plain' })
     await clickMenuById(app, 'sourceCodeModeMenuItem')
     await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
-    await app.evaluate(({ app, BrowserWindow }) => {
-      app.focus({ steal: true })
-      BrowserWindow.getAllWindows()[0].focus()
-    })
-    await page.locator('.source-code .CodeMirror').click()
+    // The window is never activated during a run, so the click has to be
+    // injected by the main process; `app.focus({ steal: true })` would take the
+    // keyboard away from whoever is using the machine.
+    await clickViaMain(app, page, '.source-code .CodeMirror')
     await page.keyboard.press('Control+Home')
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home')
     await page.keyboard.type('PREFIX ')
@@ -117,13 +117,22 @@ test('text tabs survive switching to Markdown and receive external reloads', asy
   const mdTab = page.locator('.tabs-container > li').filter({ hasText: 'note.md' })
   await sqlTab.click({ timeout: 5000 })
   await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
-  await app.evaluate(({ app, BrowserWindow }) => {
-    app.focus({ steal: true })
-    BrowserWindow.getAllWindows()[0].focus()
-  })
-  await page.locator('.source-code .CodeMirror').click()
+  await clickViaMain(app, page, '.source-code .CodeMirror')
+  // CodeMirror swallows the first keystroke that arrives while it is still
+  // taking focus from the injected click, so let it settle before typing.
+  await page.waitForTimeout(300)
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home')
-  await page.keyboard.type('-- edited\n')
+  await page.waitForTimeout(150)
+  await page.keyboard.type('-- edited\n', { delay: 20 })
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const cm = (document.querySelector('.source-code .CodeMirror') as
+          Element & { CodeMirror: { getValue(): string } }).CodeMirror
+        return cm.getValue()
+      })
+    )
+    .toBe('-- edited\n' + original)
   await saveWithKeyboard(app)
   await expect.poll(() => fs.readFileSync(file, 'utf8')).toBe('-- edited\n' + original)
   await mdTab.click({ timeout: 5000 })
