@@ -14,9 +14,8 @@ import { Muya } from '../../../../muya';
 //   - `<tag>` (non-void html) -> html-block `<tag>\n\n</tag>`
 //   - `| ... |` with even backlash counts -> table (see tableConversion.spec)
 // Anything else (including VOID html tags like `<br>` and pipe rows with an odd
-// escaped pipe) falls through to `Format.enterHandler`, which just splits the
-// paragraph — the block STAYS a paragraph. These characterization tests drive
-// the handler the way the keydown listener does and assert the document state
+// escaped pipe) inserts a soft newline — the block STAYS a paragraph. These tests
+// drive the handler the way the keydown listener does and assert the document state
 // after the json1 op flushes on the next frame.
 
 const bootedHosts: HTMLElement[] = [];
@@ -260,7 +259,7 @@ describe('enter on `<div>` — converts to an html-block', () => {
 });
 
 describe('enter on `<br>` (VOID html tag) — NOT converted', () => {
-    it('keeps the block a paragraph (no html-block) — it just splits', async () => {
+    it('keeps the block a paragraph (no html-block) — it inserts a newline', async () => {
         const muya = bootMuya('seed\n');
         const content = contentByText(muya, 'seed');
 
@@ -268,9 +267,8 @@ describe('enter on `<br>` (VOID html tag) — NOT converted', () => {
 
         await flush();
         const state = muya.getState();
-        // Fell through to Format.enterHandler: the paragraph split into two
-        // paragraphs (no html-block conversion).
-        expect(state.length).toBe(2);
+        // Ordinary paragraph input inserts a newline without conversion.
+        expect(state.length).toBe(1);
         expect(state.every(block => block.name === 'paragraph')).toBe(true);
         expect(state.some(block => block.name === 'html-block')).toBe(false);
     });
@@ -283,12 +281,12 @@ describe('enter on `<br>` (VOID html tag) — NOT converted', () => {
 
         await flush();
         const state = muya.getState();
-        expect((state[0] as { text: string }).text).toBe('<br>');
+        expect((state[0] as { text: string }).text).toBe('<br>\n');
     });
 });
 
 describe('enter on `|a\\|b|c|` (odd escaped pipe) — NOT converted', () => {
-    it('keeps the block a paragraph (no table) — it just splits', async () => {
+    it('keeps the block a paragraph (no table) — it inserts a newline', async () => {
         const muya = bootMuya('seed\n');
         const content = contentByText(muya, 'seed');
 
@@ -296,9 +294,8 @@ describe('enter on `|a\\|b|c|` (odd escaped pipe) — NOT converted', () => {
 
         await flush();
         const state = muya.getState();
-        // Odd escaped pipe fails the isLengthEven guard: fell through to
-        // Format.enterHandler, splitting the paragraph (no table conversion).
-        expect(state.length).toBe(2);
+        // Odd escaped pipe fails the isLengthEven guard: no table conversion.
+        expect(state.length).toBe(1);
         expect(state.every(block => block.name === 'paragraph')).toBe(true);
         expect(state.some(block => block.name === 'table')).toBe(false);
     });
@@ -311,6 +308,6 @@ describe('enter on `|a\\|b|c|` (odd escaped pipe) — NOT converted', () => {
 
         await flush();
         const state = muya.getState();
-        expect((state[0] as { text: string }).text).toBe('|a\\|b|c|');
+        expect((state[0] as { text: string }).text).toBe('|a\\|b|c|\n');
     });
 });

@@ -127,6 +127,13 @@ MarkText is an open-source Markdown editor powered by the support of its communi
 - Paste images directly from clipboard.
 
 
+### Paragraph line breaks
+
+In ordinary body text, **Enter** inserts one newline in both the editor and the
+Markdown source. Press **Enter** twice to start a separate paragraph. **Shift+Enter**
+always inserts a newline within the current paragraph. Lists, headings, block
+quotes, and block-conversion shortcuts retain their structural Enter behavior.
+
 ### Opening documents
 
 Launching MarkText without a file opens a blank document by default. Session restore

@@ -307,6 +307,7 @@ function lineBreakAutoPair(
         blockText.endsWith('\n')
         && start.offset === text.length
         && (event.inputType === 'insertText' || event.type === 'compositionend')
+        && text !== blockText + event.data
     ) {
         text = blockText + event.data;
         // I don't know why firefox don't need to offset++

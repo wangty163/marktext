@@ -4,16 +4,7 @@ import type Content from '../../../base/content';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Muya } from '../../../../muya';
 
-// ENTER-SPLIT GUARD — pressing Enter mid-paragraph splits the block in two.
-//
-// `ParagraphContent.enterHandler` routes a plain (non-shift) Enter on a
-// top-level paragraph through `_enterConvert`, which — when the text is not a
-// block-conversion trigger — falls through to `Format.enterHandler`. That base
-// handler keeps the text BEFORE the caret on the original block, moves the text
-// AFTER the caret onto a freshly inserted sibling paragraph, and drops the
-// caret at offset 0 of the new block. These characterization tests drive the
-// handler the way the keydown listener does and assert the resulting document
-// state after the json1 op flushes on the next frame.
+// Drive the production Enter handler and inspect both state and Markdown.
 
 const bootedHosts: HTMLElement[] = [];
 let originalVersion: string | undefined;
@@ -101,104 +92,57 @@ function blockText(state: ReturnType<Muya['getState']>, index: number): string {
     return (state[index] as { text: string }).text;
 }
 
-describe('enter mid-paragraph — split into two paragraphs', () => {
-    it('keeps `hello` on the first block and moves ` world` onto the new block', async () => {
+describe('plain paragraph Enter inserts a single newline', () => {
+    it.each([
+        { offset: 0, expected: '\nhello world' },
+        { offset: 5, expected: 'hello\n world' },
+        { offset: 11, expected: 'hello world\n' },
+    ])('inserts a newline at offset $offset', async ({ offset, expected }) => {
         const muya = bootMuya('hello world\n');
         const content = contentByText(muya, 'hello world');
-
-        enterAt(muya, content, 5);
-
+        const event = enterAt(muya, content, offset);
         await flush();
-        const state = muya.getState();
-        expect(state.length).toBe(2);
-        expect(state[0].name).toBe('paragraph');
-        expect(state[1].name).toBe('paragraph');
-        expect(blockText(state, 0)).toBe('hello');
-        expect(blockText(state, 1)).toBe(' world');
-    });
-
-    it('lands the caret at offset 0 of the new (second) block', async () => {
-        const muya = bootMuya('hello world\n');
-        const content = contentByText(muya, 'hello world');
-
-        enterAt(muya, content, 5);
-
-        await flush();
-        const newBlock = contentByText(muya, ' world');
-        const cursor = newBlock.getCursor();
-        expect(cursor).not.toBeNull();
-        expect(cursor!.start.offset).toBe(0);
-    });
-
-    it('calls preventDefault so the browser cannot also insert a native newline', () => {
-        const muya = bootMuya('hello world\n');
-        const content = contentByText(muya, 'hello world');
-
-        const event = enterAt(muya, content, 5);
-
         expect(event.preventDefault).toHaveBeenCalled();
-    });
-});
-
-describe('enter at offset 0 — all text moves to the new block', () => {
-    it('leaves the first block empty and carries the whole text onto the second', async () => {
-        const muya = bootMuya('hello world\n');
-        const content = contentByText(muya, 'hello world');
-
-        enterAt(muya, content, 0);
-
-        await flush();
-        const state = muya.getState();
-        expect(state.length).toBe(2);
-        expect(state[0].name).toBe('paragraph');
-        expect(state[1].name).toBe('paragraph');
-        expect(blockText(state, 0)).toBe('');
-        expect(blockText(state, 1)).toBe('hello world');
+        expect(muya.getState()).toHaveLength(1);
+        expect(blockText(muya.getState(), 0)).toBe(expected);
+        expect(muya.getMarkdown()).toBe(`${expected}\n`);
+        expect(content.getCursor()?.start.offset).toBe(offset + 1);
+        expect(content.getCursor()?.end.offset).toBe(offset + 1);
     });
 
-    it('lands the caret at offset 0 of the new block holding the text', async () => {
+    it('replaces the selection with one newline and collapses the caret', async () => {
         const muya = bootMuya('hello world\n');
         const content = contentByText(muya, 'hello world');
-
-        enterAt(muya, content, 0);
-
+        content.setCursor(5, 11, true);
+        content.enterHandler(new KeyboardEvent('keydown', { key: 'Enter' }));
         await flush();
-        const newBlock = contentByText(muya, 'hello world');
-        const cursor = newBlock.getCursor();
-        expect(cursor).not.toBeNull();
-        expect(cursor!.start.offset).toBe(0);
-    });
-});
-
-describe('enter at end-of-text — appends an empty paragraph with the caret in it', () => {
-    it('keeps the full text on the first block and adds an empty second block', async () => {
-        const muya = bootMuya('hello world\n');
-        const content = contentByText(muya, 'hello world');
-
-        enterAt(muya, content, content.text.length);
-
-        await flush();
-        const state = muya.getState();
-        expect(state.length).toBe(2);
-        expect(state[0].name).toBe('paragraph');
-        expect(state[1].name).toBe('paragraph');
-        expect(blockText(state, 0)).toBe('hello world');
-        expect(blockText(state, 1)).toBe('');
+        expect(content.text).toBe('hello\n');
+        expect(content.getCursor()?.start.offset).toBe(6);
+        expect(content.getCursor()?.end.offset).toBe(6);
     });
 
-    it('lands the caret at offset 0 of the new empty block', async () => {
+    it('a second Enter creates a paragraph without leaving a trailing soft break', async () => {
         const muya = bootMuya('hello world\n');
         const content = contentByText(muya, 'hello world');
-
-        enterAt(muya, content, content.text.length);
-
+        enterAt(muya, content, 11);
         await flush();
-        const state = muya.getState();
-        expect(blockText(state, 1)).toBe('');
-        const empty = contentByText(muya, '');
-        const cursor = empty.getCursor();
-        expect(cursor).not.toBeNull();
-        expect(cursor!.start.offset).toBe(0);
+        expect(content.text).toBe('hello world\n');
+        enterAt(muya, content, 12);
+        await flush();
+        expect(muya.getState()).toEqual([
+            { name: 'paragraph', text: 'hello world' },
+            { name: 'paragraph', text: '' },
+        ]);
+        expect(muya.getMarkdown()).toBe('hello world\n\n');
+        const next = muya.editor.activeContentBlock!;
+        next.text = 'next';
+        await flush();
+        expect(muya.getMarkdown()).toBe('hello world\n\nnext\n');
+        next.setCursor(0, 0, true);
+        next.backspaceHandler(new KeyboardEvent('keydown', { key: 'Backspace' }));
+        await flush();
+        expect(content.text).toBe('hello worldnext');
+        expect(muya.getMarkdown()).toBe('hello worldnext\n');
     });
 });
 

@@ -142,7 +142,17 @@ code.mu-inline-rule {
     content: attr(data-character);
 }
 
-/* hard line break and soft line end */
+/* Keep an editable caret position after a trailing newline without adding a
+   second line break or a character to the Markdown/selection offsets. */
+.mu-soft-line-break-caret {
+    display: inline-block;
+}
+
+.mu-soft-line-break-caret::after {
+    content: '\200B';
+}
+
+/* hard line break and code line end */
 .mu-line-end {
     display: block;
 }

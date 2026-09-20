@@ -183,6 +183,22 @@ describe('autoPair — 4278362f no markdown-syntax pairing inside inline math', 
 // them here surfaces any future regression at unit-test speed (the
 // multi-block case still needs to be re-verified by hand in examples/).
 describe('autoPair — 701fb9ae soft-line preservation (in-block branches)', () => {
+    it('keeps the native caret when the browser preserves the trailing newline', () => {
+        const fakeThis = makeFakeThis('a\n', 2);
+        const start = { offset: 3 };
+        const end = { offset: 3 };
+        const result = Content.prototype.autoPair.call(
+            fakeThis as unknown as Content,
+            makeInputEvent('insertText', 'x'),
+            'a\nx',
+            start,
+            end,
+        );
+        expect(result.text).toBe('a\nx');
+        expect(start.offset).toBe(3);
+        expect(end.offset).toBe(3);
+    });
+
     it('restores trailing soft-line on deleteContentBackward at end-of-text', () => {
         const fakeThis = makeFakeThis('a\nb', 3);
         const event = makeInputEvent('deleteContentBackward', null);

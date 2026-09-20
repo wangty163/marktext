@@ -1560,12 +1560,13 @@ class Format extends Content {
     protected shiftEnterHandler(event: Event): void {
         event.preventDefault();
         event.stopPropagation();
+        this.muya.editor.history.markInputBoundary('insertLineBreak', '\n');
 
         const { text: oldText } = this;
         const { start, end } = this.getCursor()!;
         this.text
             = `${oldText.substring(0, start.offset)}\n${oldText.substring(end.offset)}`;
-        this.setCursor(start.offset + 1, end.offset + 1, true);
+        this.setCursor(start.offset + 1, start.offset + 1, true);
     }
 
     override enterHandler(event: KeyboardEvent): void {

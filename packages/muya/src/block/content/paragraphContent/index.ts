@@ -606,12 +606,27 @@ class ParagraphContent extends Format {
 
         const type = this._paragraphParentType();
 
-        if (type === 'block-quote')
+        if (type === 'block-quote') {
             this._enterInBlockQuote(event);
-        else if (type === 'list-item' || type === 'task-list-item')
+        }
+        else if (type === 'list-item' || type === 'task-list-item') {
             this._enterInListItem(event);
-        else
-            this._enterConvert(event);
+        }
+        else {
+            const { start } = this.getCursor()!;
+            // A second newline forms a Markdown paragraph separator. Consume
+            // the preceding soft break so it cannot remain as a phantom row.
+            if (this.text === '' || this.text[start.offset - 1] === '\n') {
+                super.enterHandler(event);
+                if (this.text.endsWith('\n')) {
+                    this.text = this.text.slice(0, -1);
+                    this.update();
+                }
+            }
+            else {
+                this.shiftEnterHandler(event);
+            }
+        }
     }
 
     private _paragraphParentType() {
