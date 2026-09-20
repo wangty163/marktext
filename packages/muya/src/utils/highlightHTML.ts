@@ -1,5 +1,5 @@
 import type { IHighlight } from '../inlineRenderer/types';
-import { CLASS_NAMES } from '../config';
+import { CLASS_NAMES, ZERO_WIDTH_SPACE } from '../config';
 import { getLongUniqueId } from '../utils';
 
 // TODO: @jocs any better solutions?
@@ -47,6 +47,17 @@ export function getHighlightHtml(text: string, highlights: IHighlight[], escape 
         else {
             code += text.substring(pos);
         }
+    }
+
+    // A trailing line break leaves the caret behind the last `\n`, where the
+    // browser has no layout position to paint an insertion point in — pressing
+    // Enter on the last line of a code block made the caret vanish. Park the
+    // same zero-width anchor the inline renderers use; `getTextContent` skips
+    // it, so it never reaches the block's text.
+    if (handleLineEnding && text.endsWith('\n')) {
+        code += escape
+            ? getEscapeHTML(CLASS_NAMES.MU_CARET_ANCHOR, ZERO_WIDTH_SPACE)
+            : `<span class="${CLASS_NAMES.MU_CARET_ANCHOR}">${ZERO_WIDTH_SPACE}</span>`;
     }
 
     return code;

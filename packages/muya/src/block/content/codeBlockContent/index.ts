@@ -9,6 +9,7 @@ import type {
 import type Code from '../../commonMark/codeBlock/code';
 import type HTMLPreview from '../../commonMark/html/htmlPreview';
 import { HTML_TAGS, VOID_HTML_TAGS } from '../../../config';
+import { getTextContent, OFFSET_BLACKLIST } from '../../../selection/dom';
 import { adjustOffset, escapeHTML, firstWordOfInfo } from '../../../utils';
 import { computeLineCount, repositionLineNumberSpans, syncLineNumbersSpans } from '../../../utils/codeBlockLineNumbers';
 import { getHighlightHtml, MARKER_HASH } from '../../../utils/highlightHTML';
@@ -247,7 +248,11 @@ class CodeBlockContent extends Content {
         if (this.isComposed)
             return;
 
-        const textContent = this.domNode!.textContent!;
+        // `getTextContent` with the offset blacklist, not the raw `textContent`:
+        // a trailing line break parks a zero-width caret anchor in this block so
+        // the browser has a paintable insertion point, and that character must
+        // never reach the code text.
+        const textContent = getTextContent(this.domNode!, OFFSET_BLACKLIST);
         const { start, end } = this.getCursor()!;
         const { needRender, text } = this.autoPair(
             event,

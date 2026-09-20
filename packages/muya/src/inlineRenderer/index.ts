@@ -4,6 +4,7 @@ import type { Muya } from '../muya';
 import type { IRenderCursor } from '../selection/types';
 import type { IParagraphState, TContainerState, TState } from '../state/types';
 import type { IHighlight, Labels } from './types';
+import { CLASS_NAMES, ZERO_WIDTH_SPACE } from '../config';
 import logger from '../utils/logger';
 import { tokenizer } from './lexer';
 import Renderer from './renderer';
@@ -71,7 +72,16 @@ class InlineRenderer {
             block,
             cursor && cursor.block === block ? cursor : {},
         );
-        domNode!.innerHTML = html;
+        // An empty content block renders to an empty string, and a collapsed
+        // range inside an empty inline element has no client rect: the browser
+        // has no layout position to paint an insertion point in, so the caret
+        // disappears even though the selection is set and typing still works.
+        // Park the same zero-width anchor the line-break renderers use. It is
+        // invisible to offsets — `getTextContent` skips `MU_CARET_ANCHOR` and
+        // `normalizeCaretAnchorOffset` folds positions inside it back to real
+        // character counts.
+        domNode!.innerHTML = html
+            || `<span class="${CLASS_NAMES.MU_CARET_ANCHOR}">${ZERO_WIDTH_SPACE}</span>`;
     }
 
     private _collectReferenceDefinitions() {

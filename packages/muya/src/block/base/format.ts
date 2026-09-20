@@ -1442,7 +1442,10 @@ class Format extends Content {
     private _isTrailingInlineImage(imageWrapper: HTMLElement): boolean {
         let sibling = imageWrapper.nextSibling;
         while (sibling) {
-            if ((sibling.textContent ?? '').length > 0)
+            // A trailing line break parks a zero-width caret anchor here; it is
+            // not editable content, so it must not make the image look like it
+            // has text after it.
+            if (getTextContent(sibling, OFFSET_BLACKLIST).length > 0)
                 return false;
             sibling = sibling.nextSibling;
         }
