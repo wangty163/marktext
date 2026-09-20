@@ -1,5 +1,6 @@
 import type { TState } from '@muyajs/core';
 import { expect, test } from '../fixtures/muya';
+import { getMarkdown } from '../helpers/api';
 import { editor } from '../helpers/selectors';
 
 /**
@@ -80,7 +81,7 @@ test.describe('frontmatter block', () => {
             // the document loaded fully.
             await expect(page.locator(editor.paragraph).first()).toContainText('body');
 
-            const md = await page.evaluate(() => window.muya!.getMarkdown());
+            const md = await getMarkdown(page);
             expect(md.startsWith(styleCase.expectedStart)).toBe(true);
             expect(md).toContain(styleCase.text);
             // The closing delimiter immediately precedes the body paragraph.

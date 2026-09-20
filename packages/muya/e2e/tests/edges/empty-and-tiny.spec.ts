@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures/muya';
-import { getMarkdown } from '../helpers/api';
+import { getMarkdown, getState } from '../helpers/api';
 import { editor } from '../helpers/selectors';
 
 /**
@@ -12,7 +12,7 @@ test.describe('edges / empty and tiny documents', () => {
         await page.evaluate(() => window.muya!.setContent(''));
 
         // muya normalizes the empty input to one empty paragraph block.
-        const state = await page.evaluate(() => window.muya!.getState() as Array<{ name: string; text?: string }>);
+        const state = (await getState(page)) as Array<{ name: string; text?: string }>;
         expect(state.length).toBeGreaterThan(0);
         // The first block should be a paragraph with empty (or absent) text.
         expect(state[0].name).toBe('paragraph');
@@ -32,7 +32,7 @@ test.describe('edges / empty and tiny documents', () => {
     test('setContent("a") — single character round-trips and cursor is valid', async ({ page }) => {
         await page.evaluate(() => window.muya!.setContent('a'));
 
-        const state = await page.evaluate(() => window.muya!.getState() as Array<{ name: string; text?: string }>);
+        const state = (await getState(page)) as Array<{ name: string; text?: string }>;
         expect(state.length).toBe(1);
         expect(state[0].name).toBe('paragraph');
         expect(state[0].text).toBe('a');

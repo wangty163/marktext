@@ -6,8 +6,11 @@ import { editor } from '../helpers/selectors';
 // #2443 — pressing Enter while a selection spans two blocks. The cross-block
 // keydown handler only `preventDefault()`ed Backspace/Delete, so the browser's
 // native Enter ran on top of the model edit and split/`<br>`-corrupted the
-// contenteditable. Enter should behave like the same-block case: delete the
-// selection and split at the caret into a new paragraph.
+// contenteditable. Enter must behave like the same-block case: delete the
+// selection and insert one newline at the caret. Body text keeps that newline
+// as a literal line break inside a single paragraph, so the two blocks merge
+// rather than staying separate — the point of the regression is that the result
+// is clean text, not corrupted DOM.
 
 async function selectAcrossParagraphs(
     page: import('@playwright/test').Page,
@@ -42,6 +45,13 @@ test.describe('cross-block selection + Enter (#2443)', () => {
         await selectAcrossParagraphs(page, 6, 3);
         await page.keyboard.press('Enter');
 
-        expect(await getMarkdown(page)).toBe('Hello \n\n bar\n');
+        await expect.poll(() => getMarkdown(page)).toBe('Hello \n bar\n');
+        // The merged text lives in one paragraph with a literal line break — no
+        // leftover <br> or duplicated fragment from the native handler.
+        await expect(page.locator(editor.paragraph)).toHaveCount(1);
+        await expect(page.locator(editor.paragraph).first()).toContainText('Hello \n bar');
+        expect(
+            await page.evaluate(() => document.querySelectorAll('.editor-component br').length)
+        ).toBe(0);
     });
 });

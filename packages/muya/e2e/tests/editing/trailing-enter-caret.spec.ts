@@ -133,7 +133,7 @@ test.describe('a trailing hard line break keeps a visible caret', () => {
         for (let i = 0; i < 'beta'.length; i++)
             await page.keyboard.press('Backspace');
 
-        await expect.poll(() => page.evaluate(() => window.muya!.getMarkdown())).toBe('alpha  \n\n');
+        await expect.poll(() => getMarkdown(page)).toBe('alpha  \n\n');
         const html = await page.evaluate(
             () => document.querySelector('.mu-paragraph-content')?.innerHTML ?? ''
         );

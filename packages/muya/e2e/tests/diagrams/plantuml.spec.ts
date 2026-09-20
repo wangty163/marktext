@@ -1,5 +1,6 @@
 import type { TState } from '@muyajs/core';
 import { expect, test } from '../fixtures/muya';
+import { getMarkdown } from '../helpers/api';
 import { editor } from '../helpers/selectors';
 
 /**
@@ -67,7 +68,7 @@ test.describe('plantuml diagram', () => {
         await expect(page.locator(`${editor.diagramPreview} img`).first())
             .toBeVisible({ timeout: 10_000 });
 
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('```plantuml');
         expect(md).toContain('@startuml');
         expect(md).toContain('A -> B');

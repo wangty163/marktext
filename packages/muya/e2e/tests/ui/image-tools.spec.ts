@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from '../fixtures/muya';
+import { getMarkdown } from '../helpers/api';
 import { editor, floats } from '../helpers/selectors';
 
 /**
@@ -57,7 +58,7 @@ test.describe('image tools', () => {
         await expect(page.locator(`${editor.image} img`)).toHaveCount(0);
 
         // The empty image round-trips losslessly through the serializer.
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toBe('![]()\n');
     });
 

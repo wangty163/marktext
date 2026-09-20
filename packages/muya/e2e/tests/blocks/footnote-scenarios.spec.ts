@@ -1,4 +1,5 @@
 import { expect, test } from '../fixtures/muya';
+import { getMarkdown } from '../helpers/api';
 import { editor } from '../helpers/selectors';
 
 /**
@@ -23,7 +24,7 @@ test.describe('footnote scenarios', () => {
         const identifiers = page.locator(editor.inlineFootnoteIdentifier);
         await expect(identifiers).toHaveCount(3);
 
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         // Reference shape is `[^a]` × 3.
         expect((md.match(/\[\^a\](?!:)/g) ?? []).length).toBe(3);
         expect(md).toContain('[^a]: shared body');
@@ -44,7 +45,7 @@ test.describe('footnote scenarios', () => {
 
         await expect(page.locator(editor.inlineFootnoteIdentifier).first()).toBeVisible();
 
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('[^a]: defined first');
         expect(md).toContain('[^a]');
     });
@@ -68,7 +69,7 @@ test.describe('footnote scenarios', () => {
         await expect(page.locator(editor.inlineFootnoteIdentifier)).toHaveCount(0);
 
         // Definition survives — verifying that orphan defs aren't auto-pruned.
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('[^a]: orphan body');
         // No `[^a]` reference in the body (only the definition prefix).
         expect((md.match(/\[\^a\](?!:)/g) ?? []).length).toBe(0);

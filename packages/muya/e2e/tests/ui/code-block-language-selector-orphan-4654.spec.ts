@@ -19,9 +19,29 @@ import { floats } from '../helpers/selectors';
 // float in Chromium and asserts no uncaught `pageerror`.
 
 async function focusFirstLanguageInput(page: Page): Promise<void> {
+    // Find the language input by block name rather than by position: depending
+    // on how the fence is indented, the list item can carry an empty paragraph
+    // ahead of the code block, and `setContent` rebuilds the tree
+    // asynchronously, so "first content leaf" is neither stable nor correct.
+    await expect
+        .poll(() => page.evaluate(() => {
+            const find = (block: any): any => {
+                if (block?.blockName === 'language-input') return block;
+                let found = null;
+                block?.children?.forEach((child: any) => { found = found ?? find(child); });
+                return found;
+            };
+            return find(window.muya!.editor.scrollPage) ? 'language-input' : null;
+        }))
+        .toBe('language-input');
     await page.evaluate(() => {
-        const codeBlock = window.muya!.editor.scrollPage.firstChild;
-        codeBlock.firstContentInDescendant().setCursor(0, 0, true);
+        const find = (block: any): any => {
+            if (block?.blockName === 'language-input') return block;
+            let found = null;
+            block?.children?.forEach((child: any) => { found = found ?? find(child); });
+            return found;
+        };
+        find(window.muya!.editor.scrollPage).setCursor(0, 0, true);
     });
     await expect
         .poll(() => page.evaluate(() => window.muya!.editor.activeContentBlock?.blockName))

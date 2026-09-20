@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from '../fixtures/muya';
+import { flushState } from '../helpers/api';
 import { editor } from '../helpers/selectors';
 
 // #4716: undoing a list unwrap (or any op) must never leave ScrollPage empty.
@@ -10,7 +11,10 @@ import { editor } from '../helpers/selectors';
 // right) but the live ScrollPage was empty, and the next blank-area click
 // crashed the renderer in `ScrollPage._clickHandler`.
 
-function liveTree(page: Page) {
+async function liveTree(page: Page) {
+    // getMarkdown reads the JSON state, which the engine applies on the next
+    // animation frame; flush so the snapshot is not a frame stale.
+    await flushState(page);
     return page.evaluate(() => {
         const sp = (window.muya as any).editor.scrollPage;
         return {

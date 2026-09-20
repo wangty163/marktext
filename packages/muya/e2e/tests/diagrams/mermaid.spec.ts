@@ -1,5 +1,6 @@
 import type { TState } from '@muyajs/core';
 import { expect, test } from '../fixtures/muya';
+import { getMarkdown } from '../helpers/api';
 import { slowType } from '../helpers/keyboard';
 import { editor, floats, quickInsertItem } from '../helpers/selectors';
 
@@ -60,7 +61,7 @@ test.describe('mermaid diagram', () => {
         await expect(page.locator(`${editor.diagramPreview} svg`).first())
             .toBeVisible({ timeout: 15_000 });
 
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('```mermaid');
         expect(md).toContain('graph TD');
         expect(md).toContain('A-->B');
@@ -86,7 +87,7 @@ test.describe('mermaid diagram', () => {
         await expect(page.locator(`${editor.diagramPreview} svg`)).toHaveCount(0);
 
         // The editor stays alive (no thrown crash): the source still round-trips.
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('```mermaid');
     });
 
@@ -116,7 +117,7 @@ test.describe('mermaid diagram', () => {
 
         // The diagram still serializes back to a mermaid fence under the new
         // theme — the theme is a render-time option, not part of the source.
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('```mermaid');
         expect(md).toContain('graph TD');
     });
@@ -182,7 +183,7 @@ test.describe('diagram via quick-insert menu', () => {
         await expect(svg).toBeVisible({ timeout: 15_000 });
 
         // The fence language round-trips back to ```mermaid carrying the body.
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('```mermaid');
         expect(md).toContain('graph TD');
         expect(md).toContain('A-->B');
@@ -203,7 +204,7 @@ test.describe('diagram via quick-insert menu', () => {
         // The in-place replace settles a tick after the DOM node mounts, so
         // poll the serialized markdown rather than reading it once.
         await expect
-            .poll(() => page.evaluate(() => window.muya!.getMarkdown()))
+            .poll(() => getMarkdown(page))
             .toContain('```vega-lite');
 
         // Author the JSON body on the freshly-inserted code block — typing it
@@ -240,7 +241,7 @@ test.describe('diagram via quick-insert menu', () => {
         expect(markCount).toBeGreaterThan(0);
 
         // The fence language round-trips back to ```vega-lite carrying the body.
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('```vega-lite');
         expect(md).toContain('"mark":"bar"');
         expect(md.trim().endsWith('```')).toBe(true);

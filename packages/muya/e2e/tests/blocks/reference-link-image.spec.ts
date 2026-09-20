@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { expect, test } from '../fixtures/muya';
+import { getMarkdown } from '../helpers/api';
 import { editor } from '../helpers/selectors';
 
 // A 1×1 transparent PNG; works for any browser's <img> loader.
@@ -39,7 +40,7 @@ test.describe('reference link', () => {
         await expect(anchor).toBeVisible();
         await expect(anchor).toHaveAttribute('href', 'https://example.com');
 
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('[label][ref]');
         expect(md).toContain('[ref]: https://example.com "the title"');
     });
@@ -84,7 +85,7 @@ test.describe('reference link', () => {
         await expect(updated).toBeVisible();
         await expect(updated).toHaveAttribute('href', 'http://updated.example.org');
 
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('[a][r]');
         expect(md).toContain('[r]: http://updated.example.org');
     });
@@ -110,7 +111,7 @@ test.describe('reference link', () => {
         });
 
         await expect(page.locator('.mu-reference-link')).toHaveCount(0);
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('[a][r]');
     });
 });
@@ -141,7 +142,7 @@ test.describe('reference image', () => {
         await expect(img).toBeVisible({ timeout: 10_000 });
         await expect(img).toHaveAttribute('src', /example\.test\/img\.png/);
 
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('![alt text][img]');
         expect(md).toContain('[img]: https://example.test/img.png');
     });

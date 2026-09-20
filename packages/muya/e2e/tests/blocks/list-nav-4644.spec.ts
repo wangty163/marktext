@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { flushState } from '../helpers/api';
 import { loadMarkdown, slowType } from '../helpers/keyboard';
 import { editor } from '../helpers/selectors';
 
@@ -58,6 +59,7 @@ async function runSequence(page: import('@playwright/test').Page) {
 test('list edit sequence never leaves an empty list item', async ({ page }) => {
     await runSequence(page);
 
+    await flushState(page);
     const hasEmptyListItem = await page.evaluate(() => {
         const state = window.muya!.getState();
         const found: boolean[] = [];

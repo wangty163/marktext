@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures/muya';
-import { getMarkdown } from '../helpers/api';
+import { getMarkdown, getState } from '../helpers/api';
 import { metaKey } from '../helpers/keyboard';
 import { editor } from '../helpers/selectors';
 
@@ -182,7 +182,7 @@ test.describe('clipboard paste', () => {
             timeout: 5_000,
             intervals: [50, 100, 250, 500],
         }).toContain('- [ ] task');
-        await expect.poll(async () => page.evaluate(() => window.muya!.getState()[0].name), {
+        await expect.poll(async () => ((await getState(page)) as Array<{ name: string }>)[0].name, {
             timeout: 5_000,
             intervals: [50, 100, 250, 500],
         }).toBe('task-list');
@@ -196,7 +196,7 @@ test.describe('clipboard paste', () => {
             timeout: 5_000,
             intervals: [50, 100, 250, 500],
         }).toContain('- [x] done');
-        await expect.poll(async () => page.evaluate(() => window.muya!.getState()[0].name), {
+        await expect.poll(async () => ((await getState(page)) as Array<{ name: string }>)[0].name, {
             timeout: 5_000,
             intervals: [50, 100, 250, 500],
         }).toBe('task-list');

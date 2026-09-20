@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { getState } from '../helpers/api';
 import { loadMarkdown, slowType } from '../helpers/keyboard';
 import { editor } from '../helpers/selectors';
 
@@ -20,7 +21,8 @@ async function typeFenceAndEnter(page: import('@playwright/test').Page, lang: st
     await slowType(page, `\`\`\`${lang}`);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(200);
-    return page.evaluate(() => window.muya!.getState()[0] as { name: string; meta?: { type?: string; lang?: string } });
+    const state = (await getState(page)) as Array<{ name: string; meta?: { type?: string; lang?: string } }>;
+    return state[0];
 }
 
 test('typing ```mermaid + Enter creates a mermaid diagram block', async ({ page }) => {

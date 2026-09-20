@@ -1,5 +1,6 @@
 import type { TState } from '@muyajs/core';
 import { expect, test } from '../fixtures/muya';
+import { getMarkdown } from '../helpers/api';
 import { editor } from '../helpers/selectors';
 
 /**
@@ -58,7 +59,7 @@ test.describe('flowchart diagram', () => {
         await expect(page.locator(`${editor.diagramPreview} svg`).first())
             .toBeVisible({ timeout: 15_000 });
 
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         // The diagram serializes as a fenced block with the `flowchart` tag,
         // carrying the source lines we passed in.
         expect(md).toContain('```flowchart');

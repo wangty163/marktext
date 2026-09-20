@@ -1,4 +1,5 @@
 import { expect, test } from '../fixtures/muya';
+import { getMarkdown } from '../helpers/api';
 
 /**
  * Inline HTML tags (`<u>`, `<mark>`, `<sup>`, `<sub>`, `<ruby>`) render via
@@ -54,7 +55,7 @@ test.describe('inline html tags', () => {
             const el = page.locator(`${tagCase.tag}.mu-raw-html`).first();
             await expect(el).toBeVisible();
 
-            const md = await page.evaluate(() => window.muya!.getMarkdown());
+            const md = await getMarkdown(page);
             // Round-trip preserves the literal opening + closing tag text.
             expect(md).toContain(`<${tagCase.tag}>`);
             expect(md).toContain(`</${tagCase.tag}>`);
@@ -73,7 +74,7 @@ test.describe('inline html tags', () => {
 
         await expect(page.locator('span.mu-ruby').first()).toBeVisible();
 
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('<ruby>');
         expect(md).toContain('</ruby>');
         expect(md).toContain('<rt>kan</rt>');

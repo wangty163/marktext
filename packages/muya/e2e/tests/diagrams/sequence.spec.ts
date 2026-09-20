@@ -1,5 +1,6 @@
 import type { TState } from '@muyajs/core';
 import { expect, test } from '../fixtures/muya';
+import { getMarkdown } from '../helpers/api';
 import { editor } from '../helpers/selectors';
 
 /**
@@ -46,7 +47,7 @@ test.describe('sequence diagram', () => {
         await expect(page.locator(`${editor.diagramPreview} svg`).first())
             .toBeVisible({ timeout: 15_000 });
 
-        const md = await page.evaluate(() => window.muya!.getMarkdown());
+        const md = await getMarkdown(page);
         expect(md).toContain('```sequence');
         expect(md).toContain('A->B: hello');
         expect(md.trim().endsWith('```')).toBe(true);

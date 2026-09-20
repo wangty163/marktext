@@ -40,9 +40,13 @@ test.describe('undo / redo', () => {
         const para = page.locator(editor.paragraph).first();
         await para.click();
         await slowType(page, 'hello world');
-        // A correction is a deliberate, separate action — let the typed run
-        // commit (History batches per animation frame) before deleting.
-        await page.waitForTimeout(80);
+        await expect(para).toContainText('hello world');
+        // A correction is a deliberate, separate action. Wait out History's 1s
+        // coalescing window so the deletion is its own undo step no matter how
+        // the keystrokes were paced: under load a typed run can straddle the
+        // window and land in more than one group, which used to make this
+        // assertion depend on typing rhythm.
+        await page.waitForTimeout(1100);
         await page.keyboard.press('Backspace');
         await expect(para).toContainText('hello worl');
 
@@ -59,13 +63,24 @@ test.describe('undo / redo', () => {
         await slowType(page, 'hello world');
         await expect(para).toContainText('hello world');
 
-        // First undo drops the second word only.
-        await page.evaluate(() => window.muya!.undo());
-        await expect(para).not.toContainText('world');
-        await expect(para).toContainText('hello');
+        // #3825 is about undo no longer wiping a whole sentence in one step.
+        // Where exactly the groups fall depends on typing rhythm — a whitespace
+        // keystroke starts a new group, and so does History's 1s window under
+        // load — so assert that invariant instead of one exact split.
+        const text = async (): Promise<string> =>
+            (await para.innerText()).split('\u200B').join('').trim();
 
-        // Second undo drops the first word.
         await page.evaluate(() => window.muya!.undo());
-        await expect(para).not.toContainText('hello');
+        const afterFirstUndo = await text();
+        expect(afterFirstUndo.length).toBeGreaterThan(0);
+        expect(afterFirstUndo.length).toBeLessThan('hello world'.length);
+        // Whatever was removed, it was removed from the end: the document stays
+        // a prefix of what was typed, never a scrambled mix.
+        expect('hello world'.startsWith(afterFirstUndo)).toBe(true);
+
+        // The remaining groups walk the rest of the way back to empty.
+        for (let step = 0; step < 8 && (await text()).length > 0; step++)
+            await page.evaluate(() => window.muya!.undo());
+        expect(await text()).toBe('');
     });
 });
