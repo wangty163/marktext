@@ -1,68 +1,14 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
-import { launchWithMarkdown, sendIpcToRenderer, waitForMenuReady } from './helpers'
+import {
+  launchWithMarkdown,
+  sendIpcToRenderer,
+  waitForMenuReady,
+  placeCaretAtOffset,
+  readCaretOffset
+} from './helpers'
 
 const tabSelector = '.tabs-container > li'
-
-// Place a collapsed caret at character offset `ch` inside the Nth (0-based)
-// paragraph content span, then nudge the engine to commit its active block
-// (the engine derives `activeContentBlock` from keyup/click on the editor
-// root). Mirrors the deterministic injection used by parity-cursor-lang.spec.
-const placeCaretInParagraph = (
-  page: Page,
-  index: number,
-  ch: number
-): Promise<boolean> =>
-  page.evaluate(
-    ({ paragraphIndex, offset }) => {
-      const root = document.querySelector('.editor-component') as HTMLElement | null
-      if (!root) return false
-      root.focus()
-      const spans = Array.from(root.querySelectorAll('span.mu-paragraph-content'))
-      const target = spans[paragraphIndex] as HTMLElement | undefined
-      if (!target) return false
-      const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT)
-      let remaining = offset
-      let node = walker.nextNode()
-      while (node) {
-        const len = (node.textContent ?? '').length
-        if (remaining <= len) break
-        remaining -= len
-        node = walker.nextNode()
-      }
-      if (!node) return false
-      const range = document.createRange()
-      range.setStart(node, Math.min(remaining, (node.textContent ?? '').length))
-      range.collapse(true)
-      const sel = window.getSelection()
-      if (!sel) return false
-      sel.removeAllRanges()
-      sel.addRange(range)
-      document.dispatchEvent(new Event('selectionchange'))
-      root.dispatchEvent(
-        new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true, cancelable: true })
-      )
-      return true
-    },
-    { paragraphIndex: index, offset: ch }
-  )
-
-// Read the live DOM caret back as { paragraph index, offset within text node }.
-const readCaret = (page: Page): Promise<{ index: number; offset: number } | null> =>
-  page.evaluate(() => {
-    const sel = window.getSelection()
-    if (!sel || sel.rangeCount === 0 || !sel.anchorNode) return null
-    const anchorEl =
-      sel.anchorNode.nodeType === Node.TEXT_NODE
-        ? sel.anchorNode.parentElement
-        : (sel.anchorNode as Element)
-    const content = anchorEl?.closest('span.mu-paragraph-content') as Element | null
-    if (!content) return null
-    const spans = Array.from(
-      document.querySelectorAll('.editor-component span.mu-paragraph-content')
-    )
-    return { index: spans.indexOf(content), offset: sel.anchorOffset }
-  })
 
 test.describe('Tab switch restores the per-tab caret', () => {
   let app: ElectronApplication
@@ -82,11 +28,14 @@ test.describe('Tab switch restores the per-tab caret', () => {
   })
 
   test('caret returns to its original block after switching away and back', async() => {
-    // Caret after "gamma " (offset 6) in the third paragraph of tab A.
-    expect(await placeCaretInParagraph(page, 2, 6)).toBe(true)
+    // Blank lines stay literal inside one paragraph, so "after `gamma `" is an
+    // absolute offset into that paragraph:
+    // 'alpha first' (11) + '\n\n' + 'beta second' (11) + '\n\n' + 'gamma ' (6).
+    const caretOffset = 11 + 2 + 11 + 2 + 6
+    await placeCaretAtOffset(page, caretOffset)
     await page.waitForTimeout(200)
     // Sanity: the caret is where we put it before any tab switch.
-    expect(await readCaret(page)).toEqual({ index: 2, offset: 6 })
+    expect(await readCaretOffset(page)).toEqual({ index: 0, offset: caretOffset, collapsed: true })
 
     // Open a second, auto-selected tab — this switches away from tab A.
     await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'other tab body\n')
@@ -101,9 +50,9 @@ test.describe('Tab switch restores the per-tab caret', () => {
     await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 0)
     await page.waitForTimeout(300)
 
-    // The caret must be restored to the third paragraph at offset 6.
-    const caret = await readCaret(page)
-    expect(caret).toEqual({ index: 2, offset: 6 })
+    // The caret must be restored to the same offset in the same paragraph.
+    const caret = await readCaretOffset(page)
+    expect(caret).toEqual({ index: 0, offset: caretOffset, collapsed: true })
   })
 })
 
@@ -132,8 +81,10 @@ test.describe('Tab switch restores the per-tab undo history', () => {
   // live DOM caret landed there before typing, so a following type-run lands as
   // a new undo boundary at the intended position.
   const placeCaretAt = async(paragraph: number, offset: number): Promise<void> => {
-    await expect.poll(() => placeCaretInParagraph(page, paragraph, offset)).toBe(true)
-    await expect.poll(() => readCaret(page)).toEqual({ index: paragraph, offset })
+    await placeCaretAtOffset(page, offset, paragraph)
+    await expect
+      .poll(() => readCaretOffset(page))
+      .toEqual({ index: paragraph, offset, collapsed: true })
   }
 
   // Read the markdown of the Nth (0-based) paragraph content span straight off

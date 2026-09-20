@@ -3,7 +3,8 @@ import type { ElectronApplication, Page } from 'playwright'
 import { readFileSync } from 'node:fs'
 import {
   closeTestApplication, enterSourceMode, focusEditor, getMarkdownContent,
-  launchWithMarkdown, saveWithKeyboard, setSourceMarkdown, terminateTestApplication
+  launchWithMarkdown, paragraphText, saveWithKeyboard, setSourceMarkdown,
+  terminateTestApplication, ZERO_WIDTH_SPACE
 } from './helpers'
 
 let app: ElectronApplication
@@ -89,41 +90,53 @@ test.describe('Arrow-up scrolls the document (#3329)', () => {
 })
 
 test.describe('Empty lines reset the vertical caret column', () => {
-  const texts = ['abcdefghij', 'xy', 'abcdefghijklmn']
+  // Blank lines in body text stay literal newlines inside ONE paragraph, so the
+  // caret is asserted as an absolute offset into that paragraph's text rather
+  // than as (paragraph index, offset).
+  const lines = ['abcdefghij', '', 'xy', '', 'abcdefghijklmn']
+  const text = lines.join('\n')
+  const lineStart = (index: number): number =>
+    lines.slice(0, index).reduce((total, line) => total + line.length + 1, 0)
   const contentSelector = '.editor-component span.mu-paragraph-content'
 
   test.beforeEach(async() => {
-    await setSourceMarkdown(page, app, `${texts.join('\n\n')}\n`)
-    await expect(page.locator(contentSelector)).toHaveText(texts)
+    await setSourceMarkdown(page, app, `${text}\n`)
+    await expect(page.locator(contentSelector)).toHaveCount(1)
+    await expect.poll(() => paragraphText(page)).toBe(text)
     await page.evaluate(() => {
       const root = document.querySelector('.editor-component') as HTMLElement
       root.scrollTop = 0
     })
   })
 
-  const expectCaret = async(index: number, offset: number) => {
-    await expect.poll(() => page.evaluate((selector) => {
-      const selection = window.getSelection()
-      if (!selection?.anchorNode || !selection.rangeCount) return null
-      const node = selection.anchorNode
-      const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node as Element
-      const content = element?.closest('span.mu-paragraph-content')
-      if (!content) return null
-      // anchorOffset alone can be a child index, not a character offset.
-      const range = document.createRange()
-      range.selectNodeContents(content)
-      range.setEnd(node, selection.anchorOffset)
-      return {
-        index: Array.from(document.querySelectorAll(selector)).indexOf(content),
-        offset: range.toString().length,
-        collapsed: selection.isCollapsed
-      }
-    }, contentSelector)).toEqual({ index, offset, collapsed: true })
+  // Character offset of the caret inside the paragraph, ignoring the zero-width
+  // anchor the engine parks after a trailing newline.
+  const expectCaret = async(offset: number) => {
+    await expect
+      .poll(() =>
+        page.evaluate((zwsp) => {
+          const selection = window.getSelection()
+          if (!selection?.anchorNode || !selection.rangeCount) return null
+          const node = selection.anchorNode
+          const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element)
+          const content = element?.closest('span.mu-paragraph-content')
+          if (!content) return null
+          // anchorOffset alone can be a child index, not a character offset.
+          const range = document.createRange()
+          range.selectNodeContents(content)
+          range.setEnd(node, selection.anchorOffset)
+          return {
+            offset: range.toString().split(zwsp).join('').length,
+            collapsed: selection.isCollapsed
+          }
+        }, ZERO_WIDTH_SPACE)
+      )
+      .toEqual({ offset, collapsed: true })
   }
 
-  const press = async(key: string, index: number, offset: number) => {
+  const press = async(key: string, offset: number) => {
     await page.keyboard.press(key)
-    await expectCaret(index, offset)
+    await expectCaret(offset)
   }
 
   const attachCaret = async() => {
@@ -134,20 +147,24 @@ test.describe('Empty lines reset the vertical caret column', () => {
     })
   }
 
-  const start = async(index: number, atEnd: boolean) => {
-    // Only initialization injects a selection; every subsequent move is a real keypress.
-    await page.locator(contentSelector).nth(index).evaluate((content, end) => {
+  // Only initialization injects a selection; every later move is a real keypress.
+  const start = async(offset: number) => {
+    await page.evaluate((off) => {
       const root = document.querySelector('.editor-component') as HTMLElement
+      const content = document.querySelector('span.mu-paragraph-content') as HTMLElement
       root.focus()
       const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT)
-      let textNode = walker.nextNode()
-      if (!textNode) throw new Error('The initial paragraph has no text node')
-      if (end) {
-        for (let next = walker.nextNode(); next; next = walker.nextNode()) textNode = next
+      let node = walker.nextNode() as Text | null
+      let remaining = off
+      while (node) {
+        const length = (node.textContent ?? '').split('\u200B').join('').length
+        if (remaining <= length) break
+        remaining -= length
+        node = walker.nextNode() as Text | null
       }
-      // Muya expects a text offset, not an element child index during selection commit.
+      if (!node) throw new Error('The paragraph has no text node at that offset')
       const range = document.createRange()
-      range.setStart(textNode, end ? textNode.textContent!.length : 0)
+      range.setStart(node, remaining)
       range.collapse(true)
       const selection = window.getSelection()
       if (!selection) throw new Error('DOM selection is unavailable')
@@ -155,80 +172,46 @@ test.describe('Empty lines reset the vertical caret column', () => {
       selection.addRange(range)
       document.dispatchEvent(new Event('selectionchange'))
       root.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }))
-    }, atEnd)
+    }, offset)
     // Source-mode replacement preserves the engine, including its preferred column.
     await page.keyboard.press('Escape')
-    await expectCaret(index, atEnd ? texts[index].length : 0)
+    await expectCaret(offset)
   }
 
-  const createGaps = async(key: 'ArrowUp' | 'ArrowDown') => {
-    const down = key === 'ArrowDown'
-    await start(down ? 0 : 2, down)
-    const paragraphs = [...texts]
-    // Markdown separators do not produce editable empty paragraphs; Enter must create them.
-    for (let count = 1; count <= 2; count++) {
-      paragraphs.splice(down ? count : count + 1, 0, '')
-      await press('Enter', down ? count : count + 2, 0)
-      await expect(page.locator(contentSelector)).toHaveText(paragraphs)
+  test('ArrowDown and ArrowUp walk every line, blank lines included', async() => {
+    await start(lines[0].length)
+    for (const offset of [lineStart(1), lineStart(2), lineStart(3), lineStart(4)]) {
+      await press('ArrowDown', offset)
     }
-    return paragraphs
-  }
+    for (const offset of [lineStart(3), lineStart(2), lineStart(1), 0]) {
+      await press('ArrowUp', offset)
+    }
+    await attachCaret()
+  })
 
   for (const key of ['ArrowUp', 'ArrowDown'] as const) {
-    test(`${key} leaves newly entered empty lines at column zero`, async() => {
-      await createGaps('ArrowDown')
-      if (key === 'ArrowUp') await press(key, 1, 0)
-      await press(key, key === 'ArrowUp' ? 0 : 3, 0)
-      await attachCaret()
-    })
-
     for (const column of ['end', 'middle'] as const) {
-      test(`${key} resets ${column} history across consecutive empty lines`, async() => {
+      test(`${key} resets ${column} column history across the blank lines`, async() => {
         const down = key === 'ArrowDown'
-        const paragraphs = await createGaps(key)
-        const source = down ? 0 : 4
-        const sourceLength = paragraphs[source].length
-        const offset = column === 'end' ? sourceLength : 6
-        if (down) {
-          await press('ArrowLeft', 1, 0)
-          await press('ArrowLeft', 0, sourceLength)
-          for (let ch = sourceLength - 1; ch >= offset; ch--) {
-            await press('ArrowLeft', source, ch)
-          }
-        } else {
-          for (let ch = 1; ch <= offset; ch++) await press('ArrowRight', source, ch)
-        }
+        // A blank line is a column-zero anchor: after crossing one, the caret
+        // must not snap back to the column it left, so every row below lands at
+        // its own line start no matter which column the walk began in.
+        const sourceColumn = column === 'end' ? lines[0].length : 6
+        const startOffset = down ? sourceColumn : lineStart(4) + sourceColumn
+        await start(startOffset)
 
-        const forward = down ? [1, 2, 3, 4] : [3, 2, 1, 0]
-        const backward = down ? [3, 2, 1, 0] : [1, 2, 3, 4]
-        const reverseKey = down ? 'ArrowUp' : 'ArrowDown'
+        const downSequence = [lineStart(1), lineStart(2), lineStart(3), lineStart(4)]
+        const upSequence = [lineStart(3), lineStart(2), lineStart(1), 0]
+        const forward = down ? downSequence : upSequence
+        const backward = down ? upSequence : downSequence
         for (let pass = 0; pass < 2; pass++) {
-          for (const index of forward) {
-            await press(key, index, 0)
-            if (pass === 0 && index === forward[2]) await attachCaret()
+          for (const offset of forward) await press(key, offset)
+          for (const offset of backward) {
+            await press(down ? 'ArrowUp' : 'ArrowDown', offset)
           }
-          for (const index of backward) await press(reverseKey, index, 0)
         }
-        await expect(page.locator(contentSelector)).toHaveText(paragraphs)
+        await expect.poll(() => paragraphText(page)).toBe(text)
       })
     }
-  }
-
-  for (const column of ['end', 'middle'] as const) {
-    test(`nonempty lines preserve ${column} navigation through a short line`, async() => {
-      await start(0, true)
-      const offset = column === 'end' ? texts[0].length : 6
-      for (let ch = texts[0].length - 1; ch >= offset; ch--) {
-        await press('ArrowLeft', 0, ch)
-      }
-      const lastOffset = column === 'end' ? texts[2].length : offset
-      for (let pass = 0; pass < 2; pass++) {
-        await press('ArrowDown', 1, texts[1].length)
-        await press('ArrowDown', 2, lastOffset)
-        await press('ArrowUp', 1, texts[1].length)
-        await press('ArrowUp', 0, offset)
-      }
-      await expect(page.locator(contentSelector)).toHaveText(texts)
-    })
   }
 })

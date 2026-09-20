@@ -8,7 +8,8 @@ import {
   focusEditor,
   typeIntoEditor,
   getMarkdownContent,
-  expectNoRendererErrors
+  expectNoRendererErrors,
+  placeCaretAtOffset
 } from './helpers'
 
 // Phase G — G7 / G8 parity.
@@ -22,52 +23,6 @@ import {
 // G8: switching the UI language mid-session must refresh the already-rendered
 // inline placeholder hints. `Muya.locale()` now re-renders the block tree, so an
 // empty paragraph's quick-insert hint updates immediately.
-
-// Place a collapsed caret at character offset `ch` inside the first text node
-// of the Nth (0-based) non-empty paragraph content span, then nudge the engine
-// to commit its active block (the engine derives `activeContentBlock` from
-// keyup/click on the editor root). Using an explicit text-node offset keeps the
-// caret position deterministic in headless Chromium.
-const placeCaretInParagraph = (
-  page: Page,
-  index: number,
-  ch: number
-): Promise<boolean> =>
-  page.evaluate(
-    ({ paragraphIndex, offset }) => {
-      const root = document.querySelector('.editor-component') as HTMLElement | null
-      if (!root) return false
-      root.focus()
-      const spans = Array.from(root.querySelectorAll('span.mu-paragraph-content'))
-      const target = spans[paragraphIndex] as HTMLElement | undefined
-      if (!target) return false
-      // The engine wraps content text in nested inline spans, so walk the
-      // descendant text nodes and find the one holding character `offset`.
-      const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT)
-      let remaining = offset
-      let node = walker.nextNode()
-      while (node) {
-        const len = (node.textContent ?? '').length
-        if (remaining <= len) break
-        remaining -= len
-        node = walker.nextNode()
-      }
-      if (!node) return false
-      const range = document.createRange()
-      range.setStart(node, Math.min(remaining, (node.textContent ?? '').length))
-      range.collapse(true)
-      const sel = window.getSelection()
-      if (!sel) return false
-      sel.removeAllRanges()
-      sel.addRange(range)
-      document.dispatchEvent(new Event('selectionchange'))
-      root.dispatchEvent(
-        new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true, cancelable: true })
-      )
-      return true
-    },
-    { paragraphIndex: index, offset: ch }
-  )
 
 const getCmCursor = (page: Page): Promise<{ line: number; ch: number } | null> =>
   page.evaluate(() => {
@@ -95,8 +50,10 @@ test.describe('Parity G7 — WYSIWYG -> source caret sync', () => {
   })
 
   test('G7: source mode opens at the line/column the WYSIWYG caret was on', async() => {
-    // Caret after "third " (offset 6) in the third paragraph.
-    expect(await placeCaretInParagraph(page, 2, 6)).toBe(true)
+    // Blank lines stay literal inside one paragraph, so "after `third `" is an
+    // absolute offset into that paragraph:
+    // 'first para' (10) + '\n\n' + 'second para' (11) + '\n\n' + 'third ' (6).
+    await placeCaretAtOffset(page, 10 + 2 + 11 + 2 + 6)
     await page.waitForTimeout(200)
 
     await enterSourceMode(page, app)

@@ -248,6 +248,80 @@ export const paragraphText = async(page: Page, index = 0): Promise<string> => {
   return text.split(ZERO_WIDTH_SPACE).join('')
 }
 
+/**
+ * Put a collapsed caret at an absolute character offset inside a paragraph.
+ * Blank lines in body text stay literal newlines within ONE paragraph, so specs
+ * address the caret by offset into that paragraph's text rather than by
+ * (paragraph index, line). Only initialization injects a selection this way;
+ * follow-up moves in a spec should be real keypresses.
+ */
+export const placeCaretAtOffset = async(
+  page: Page,
+  offset: number,
+  paragraphIndex = 0
+): Promise<void> => {
+  const placed = await page.evaluate(
+    ({ off, index, zwsp }) => {
+      const root = document.querySelector('.editor-component') as HTMLElement | null
+      if (!root) return false
+      root.focus()
+      const content = root.querySelectorAll('span.mu-paragraph-content')[index] as
+        | HTMLElement
+        | undefined
+      if (!content) return false
+      const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT)
+      let node = walker.nextNode() as Text | null
+      let remaining = off
+      while (node) {
+        const length = (node.textContent ?? '').split(zwsp).join('').length
+        if (remaining <= length) break
+        remaining -= length
+        node = walker.nextNode() as Text | null
+      }
+      if (!node) return false
+      const range = document.createRange()
+      range.setStart(node, remaining)
+      range.collapse(true)
+      const selection = window.getSelection()
+      if (!selection) return false
+      selection.removeAllRanges()
+      selection.addRange(range)
+      document.dispatchEvent(new Event('selectionchange'))
+      // The engine derives its active block from key events on the editor root,
+      // so a bare selectionchange is not enough.
+      root.dispatchEvent(
+        new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true, cancelable: true })
+      )
+      return true
+    },
+    { off: offset, index: paragraphIndex, zwsp: ZERO_WIDTH_SPACE }
+  )
+  if (!placed) throw new Error(`Could not place the caret at offset ${offset} of paragraph ${paragraphIndex}`)
+}
+
+/** Paragraph index and absolute character offset of the current DOM caret. */
+export const readCaretOffset = async(
+  page: Page
+): Promise<{ index: number; offset: number; collapsed: boolean } | null> =>
+  page.evaluate((zwsp) => {
+    const selection = window.getSelection()
+    if (!selection?.anchorNode || !selection.rangeCount) return null
+    const node = selection.anchorNode
+    const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element)
+    const content = element?.closest('span.mu-paragraph-content')
+    if (!content) return null
+    // anchorOffset alone can be a child index, not a character offset.
+    const range = document.createRange()
+    range.selectNodeContents(content)
+    range.setEnd(node, selection.anchorOffset)
+    const spans = Array.from(document.querySelectorAll('span.mu-paragraph-content'))
+    return {
+      index: spans.indexOf(content),
+      offset: range.toString().split(zwsp).join('').length,
+      collapsed: selection.isCollapsed
+    }
+  }, ZERO_WIDTH_SPACE)
+
 export const waitForEditor = async(page: Page, timeout = 15000): Promise<void> => {
   await page.waitForSelector('.editor-component', { state: 'attached', timeout })
   await page.waitForFunction(
@@ -305,7 +379,11 @@ export const getMarkdownContent = async(
 }
 
 export const typeIntoEditor = async(page: Page, text: string): Promise<void> => {
-  await page.click('.editor-component', { timeout: 5000 })
+  // Focus and place the caret through the DOM instead of clicking the component.
+  // A CDP click is unreliable while the window is never the OS key window, and a
+  // click that lands in the empty area below the text makes the engine append a
+  // paragraph — silently moving the caret away from where the caller put it.
+  await placeCaretInEditor(page)
   // Let contenteditable settle between input-driven renders. At delay: 0 the
   // next key can target a span that Muya has just replaced, dropping a letter.
   await page.keyboard.type(text, { delay: 10 })

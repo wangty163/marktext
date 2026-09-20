@@ -330,11 +330,13 @@ test.describe('Item 256 — save -> clean -> edit -> dirty -> undo-to-saved cycl
     await sendIpcToRenderer(app, 'mt::tab-saved', tabId)
     await expect.poll(() => isTabDirty(page)).toBe(false)
 
-    // 3) A fresh edit past the saved state re-marks the tab dirty.
+    // 3) A fresh edit past the saved state re-marks the tab dirty. Body text
+    //    stays in one paragraph, so the new run lands on the same line as the
+    //    saved content rather than in a paragraph of its own.
     await placeCaretInEditor(page)
     await typeIntoEditor(page, ' MORE')
     await expect.poll(() => isTabDirty(page)).toBe(true)
-    await expect.poll(() => wysiwygText(page)).toBe(`${savedText}\nMORE`)
+    await expect.poll(() => wysiwygText(page)).toBe(`${savedText} MORE`)
     await page.waitForTimeout(400)
 
     // 4) Undo the MORE edit, landing back on the saved EXTRA content. The dot
