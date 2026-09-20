@@ -154,6 +154,16 @@ class History {
     }
 
     private _change(source: HistoryAction, dest: HistoryAction) {
+        // `JSONState` batches edits and applies them on the next animation
+        // frame, so the json state can lag behind the text the user already
+        // sees. Undo/redo inverts its entry against that state, and inverting
+        // against a document the entry was never built from corrupts the text
+        // (`hello world` undid to `helld`) with a result that depends on frame
+        // timing. Apply the queue first — the same handoff a tab switch
+        // performs (#2938) — which also records the pending edit, so the undo
+        // reverts exactly what the user last did.
+        this._muya.editor.jsonState.flush();
+
         if (this._stack[source].length === 0)
             return;
 
