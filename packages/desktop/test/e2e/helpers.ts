@@ -62,6 +62,12 @@ export interface LaunchOptions {
   // should opt in — otherwise existing specs would silently ignore renderer
   // exceptions that previously surfaced as a dialog (a hidden regression risk).
   suppressErrorDialog?: boolean
+  // Playwright cannot run Electron headless, so by default the window is parked
+  // off-screen and shown inactive: the renderer still paints (layout,
+  // screenshots and caret geometry stay real) while the run never takes focus
+  // away from whoever is using the machine. Specs that must verify real window
+  // activation opt out explicitly.
+  visibleWindow?: boolean
 }
 
 export const launchElectron = async(
@@ -83,6 +89,7 @@ export const launchElectron = async(
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v
   env.PERF_TESTING = 'true'
+  if (!options.visibleWindow) env.MARKTEXT_E2E_UNOBTRUSIVE = '1'
   if (options.suppressErrorDialog) env.MARKTEXT_ERROR_INTERACTION = '1'
   const app = await _electron.launch({
     executablePath,

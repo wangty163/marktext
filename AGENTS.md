@@ -28,6 +28,34 @@ Root `.editorconfig`, Prettier, and ESLint enforce UTF-8, LF endings, two-space 
 
 Name tests `*.spec.ts`. Add a focused regression test for behavior changes; there is no repository-wide numeric coverage target. Use Vitest for unit logic and Playwright for real Electron, selection, clipboard, or UI flows. Keep Muya tests beside the affected source; use `test/spec/` for CommonMark or GFM behavior.
 
+Prefer the cheapest tier that still proves the behavior, and never take over the
+developer's machine while doing it:
+
+1. Muya Vitest (happy-dom) for engine state, Markdown and offsets.
+2. `packages/muya/e2e` (Playwright, headless Chromium, no window at all) for anything
+   that needs real layout — caret paintability, line heights, selection rectangles.
+   Its Vite server needs `pnpm` on PATH; if pnpm is unavailable, start
+   `packages/muya/e2e/node_modules/.bin/vite --port 5174 --strictPort` yourself and
+   Playwright reuses it.
+3. Desktop Electron E2E only for shell-level behavior (menus, tabs, save, IPC).
+
+Desktop Electron runs are unobtrusive by default: the launcher sets
+`MARKTEXT_E2E_UNOBTRUSIVE=1`, the window is parked off-display and shown inactive,
+the Dock icon is hidden, and native dialogs are auto-answered, so a run neither
+covers the desktop nor steals keyboard focus. Because the window is never the OS key
+window, Playwright mouse events do not reach the editor — inject clicks and drags
+with `test/e2e/mainProcessInput.ts` (`clickViaMain`, `dragViaMain`) instead of
+`locator.click()` or `page.mouse`, and never call `app.focus({ steal: true })`.
+Details and the reasoning live in `packages/desktop/test/e2e/README.md`;
+`unobtrusive-window.spec.ts` guards the contract.
+
+A known-flaky set exists in `packages/muya/e2e` (`editing/undo-redo`,
+`editing/search-replace`, `editing/cross-block-enter`, `inline/format-toolbar`,
+`inline/shortcuts`, `typing/ime`, `typing/math-and-diagrams`,
+`ui/paragraph-front`, `ui/code-block-language-selector-orphan-4654`). Before
+treating a failure there as a regression, re-run the same spec on a stashed tree and
+compare: the failing subset moves between runs.
+
 Before implementing any feature or behavior change, trace the shared production path and its
 callers, then identify related variants, entry points, serialization, history, persistence, and
 UI behavior that may be affected. Preserve existing invariants and adapt every impacted branch,

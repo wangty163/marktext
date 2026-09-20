@@ -16,7 +16,7 @@ import { checkUpdates, userSetting } from './marktext'
 import { showTabBar } from './view'
 import { COMMANDS } from '../../commands'
 import type { CommandManager } from '../../commands'
-import { EXTENSION_HASN, PANDOC_EXTENSIONS, URL_REG } from '../../config'
+import { EXTENSION_HASN, PANDOC_EXTENSIONS, URL_REG, unobtrusiveTestWindow } from '../../config'
 import { normalizeAndResolvePath, writeFile } from '../../filesystem'
 import { writeMarkdownFile } from '../../filesystem/markdown'
 import { getPath, getRecommendTitleFromMarkdownString } from '../../utils'
@@ -228,6 +228,17 @@ const showUnsavedFilesMessage = async(
   win: BrowserWindow,
   files: UnsavedFile[]
 ): Promise<{ needSave: boolean } | null> => {
+  // An automated run has nobody to answer this sheet, and macOS pins the sheet
+  // to the (parked, mostly off-display) window where it would sit on the user's
+  // desktop until the run times out. Test documents are disposable, so discard
+  // them the way "Don't Save" would.
+  if (unobtrusiveTestWindow) {
+    log.info(
+      `Unobtrusive test mode: discarding ${files.length} unsaved file(s) instead of showing the save dialog`
+    )
+    return { needSave: false }
+  }
+
   const { response } = await dialog.showMessageBox(win, {
     type: 'warning',
     buttons: [t('dialog.save'), t('dialog.dontSave'), t('dialog.cancel')],

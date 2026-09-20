@@ -5,6 +5,39 @@
 uses the repository's Electron build. For installed startup behavior, use the
 installed path documented in the root `AGENTS.md`.
 
+## Runs never take over the machine
+
+Playwright cannot start Electron headless, so a plain run puts a real window on the
+desktop, activates the app, and leaves native sheets there until a timeout expires.
+The launcher therefore sets `MARKTEXT_E2E_UNOBTRUSIVE=1`, and the main process
+responds to it:
+
+- the editor and preferences windows are created hidden, revealed with
+  `showInactive()` and then parked as far off-display as the platform allows
+  (macOS clamps a shown window so a sliver of its title bar stays reachable);
+- `bringToFront()` never calls `focus()`/`moveTop()`, and on macOS the Dock icon is
+  hidden, so the app never becomes frontmost;
+- background throttling is disabled, so the hidden window keeps painting: layout,
+  caret geometry, `page.screenshot()` and `capturePage` all stay real;
+- native dialogs are auto-answered (`src/main/testing/unobtrusiveDialogs.ts`):
+  message boxes take the caller's declared default button and file pickers report a
+  cancellation. Without this, an unanswered "Save changes?" sheet blocks quitting
+  for the full `closeTestApplication` timeout on every dirty document.
+
+`unobtrusive-window.spec.ts` asserts this contract. Pass `{ visibleWindow: true }`
+to `launchElectron()` when a case genuinely has to verify activation or real window
+placement.
+
+Because the window is never the OS key window, Playwright's own mouse events do not
+reach the editor: a CDP click moves `document.activeElement` but Muya never adopts
+the selection. Use `mainProcessInput.ts` instead — `clickViaMain()` and
+`dragViaMain()` inject `webContents.sendInputEvent` mouse sequences from the main
+process, which the renderer treats as real input. Keyboard events need no such
+workaround: `page.keyboard` works while the window is unfocused. Clicks on a
+paragraph's content span must land on a glyph (`{ position: { x: 4 } }`); the span
+spans the full line width and a click in its empty tail does not resolve to the
+block.
+
 `text-files-startup.spec.ts` shares one application across ordinary file cases.
 Only its relaunch case closes and opens the application again. The suite is serial:
 a failed case terminates the isolated test process and skips dependent cases.
@@ -33,3 +66,7 @@ navigation tests, not undo/redo or clean-start tests.
 Lifecycle unit tests use fake child processes and timers; they do not launch
 Electron. `playwright test --config=test/e2e/playwright.config.ts
 text-files-startup.spec.ts --list` also checks collection without opening the app.
+
+A bare `launchElectron()` follows the configured startup action and opens a blank
+document; it does not adopt the process working directory. Cases that need a sidebar
+folder pass an explicit temporary directory as a launch argument.

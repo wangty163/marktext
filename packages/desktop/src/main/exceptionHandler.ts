@@ -10,13 +10,16 @@ import { app, clipboard, crashReporter, dialog, ipcMain } from 'electron'
 import os from 'os'
 import log from 'electron-log'
 import { createAndOpenGitHubIssueUrl } from './utils/createGitHubIssue'
+import { unobtrusiveTestWindow } from './config'
 import { t } from './i18n'
 
 type ErrorType = 'main' | 'renderer'
 type Logger = (s: string) => void
 
 const EXIT_ON_ERROR = !!process.env.MARKTEXT_EXIT_ON_ERROR
-const SHOW_ERROR_DIALOG = !process.env.MARKTEXT_ERROR_INTERACTION
+// An unobtrusive test run has nobody to dismiss a blocking error dialog, and
+// without a parent window macOS would centre it on the user's desktop.
+const SHOW_ERROR_DIALOG = !process.env.MARKTEXT_ERROR_INTERACTION && !unobtrusiveTestWindow
 const ERROR_MSG_MAIN = (): string => t('error.unexpectedMainProcess')
 const ERROR_MSG_RENDERER = (): string => t('error.unexpectedRendererProcess')
 

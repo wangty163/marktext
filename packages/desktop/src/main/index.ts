@@ -9,6 +9,8 @@ import setupExceptionHandler, { initExceptionLogger } from './exceptionHandler'
 import setupEnvironment from './app/env'
 import type { AppEnvironment } from './app/env'
 import { getLogLevel } from './utils'
+import { unobtrusiveTestWindow } from './config'
+import { installUnobtrusiveDialogs } from './testing/unobtrusiveDialogs'
 import Accessor from './app/accessor'
 import App from './app'
 import { t } from './i18n'
@@ -70,6 +72,11 @@ if (args['--disable-gpu']) {
   app.disableHardwareAcceleration()
 }
 
+// Keep every native dialog off the user's desktop during automated runs.
+if (unobtrusiveTestWindow) {
+  installUnobtrusiveDialogs()
+}
+
 // Single instance lock (except macOS & development)
 if (!process.mas && process.env.NODE_ENV !== 'development') {
   const gotLock = app.requestSingleInstanceLock()
@@ -102,7 +109,7 @@ try {
   log.error(t('error.initializationFailed', { hint: msgHint }), errorObj)
 
   const EXIT_ON_ERROR = !!process.env.MARKTEXT_EXIT_ON_ERROR
-  const SHOW_ERROR_DIALOG = !process.env.MARKTEXT_ERROR_INTERACTION
+  const SHOW_ERROR_DIALOG = !process.env.MARKTEXT_ERROR_INTERACTION && !unobtrusiveTestWindow
   if (!EXIT_ON_ERROR && SHOW_ERROR_DIALOG) {
     dialog.showErrorBox(
       t('error.startupError'),

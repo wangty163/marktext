@@ -2,7 +2,13 @@ import path from 'path'
 import type { BrowserWindow } from 'electron'
 import { TypedEmitter } from '@shared/types/typedEmitter'
 import type Accessor from '../app/accessor'
+import { unobtrusiveTestWindow } from '../config'
 import { getThemeBackgroundColor } from '../../common/theme'
+
+// Requested off-display placement for the unobtrusive test window; each platform
+// clamps it to the furthest position it still allows.
+const PARKED_WINDOW_X = -32000
+const PARKED_WINDOW_Y = -32000
 
 /**
  * A MarkText window.
@@ -83,6 +89,17 @@ class BaseWindow extends TypedEmitter<BaseWindowEvents> {
   bringToFront(): void {
     const { browserWindow: win } = this
     if (!win) return
+    // Test mode: reveal the window so the renderer keeps receiving input and
+    // painting, but never activate it — taking focus would interrupt whoever is
+    // using the machine. Park it as far off-display as the platform allows
+    // afterwards: macOS only clamps a window that is already on screen, and it
+    // always keeps a sliver of the title bar reachable.
+    if (unobtrusiveTestWindow) {
+      if (win.isMinimized()) win.restore()
+      if (!win.isVisible()) win.showInactive()
+      win.setPosition(PARKED_WINDOW_X, PARKED_WINDOW_Y, false)
+      return
+    }
     if (win.isMinimized()) win.restore()
     if (!win.isVisible()) win.show()
     win.focus()

@@ -5,6 +5,15 @@ export const isOsx: boolean = process.platform === 'darwin'
 export const isWindows: boolean = process.platform === 'win32'
 export const isLinux: boolean = process.platform === 'linux'
 
+/**
+ * Automated-test mode that keeps the app out of the user's way. Playwright
+ * cannot run Electron headless, so without this a test run steals focus and
+ * covers the screen with a real window. The editor window is created but never
+ * shown; background throttling stays off so the renderer keeps painting and
+ * layout, caret geometry, screenshots and `capturePage` all remain real.
+ */
+export const unobtrusiveTestWindow: boolean = process.env.MARKTEXT_E2E_UNOBTRUSIVE === '1'
+
 export const editorWinOptions: Readonly<BrowserWindowConstructorOptions> = Object.freeze({
   minWidth: 550,
   minHeight: 350,

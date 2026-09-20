@@ -7,7 +7,7 @@ import { app, BrowserWindow, clipboard, dialog, nativeTheme, shell, ipcMain } fr
 import type { BrowserWindowConstructorOptions } from 'electron'
 import { isChildOfDirectory } from 'common/filesystem/paths'
 import type { IUserPreferences } from '@shared/types/preferences'
-import { isLinux, isOsx, isWindows } from '../config'
+import { isLinux, isOsx, isWindows, unobtrusiveTestWindow } from '../config'
 import parseArgs from '../cli/parser'
 import { normalizeAndResolvePath } from '../filesystem'
 import { normalizeMarkdownPath } from '../filesystem/markdown'
@@ -226,6 +226,12 @@ class App {
   ready = (): void => {
     const { _args: args, _openFilesCache } = this
     const { preferences, editorBufferStore } = this._accessor
+
+    // An automated run must not activate the app: hiding the Dock icon keeps
+    // macOS from bringing MarkText frontmost over whatever the user is doing.
+    if (unobtrusiveTestWindow && isOsx) {
+      app.dock?.hide()
+    }
 
     // Initialize language settings
     const { startUpAction, defaultDirectoryToOpen, theme, language } = preferences.getAll()

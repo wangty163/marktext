@@ -6,6 +6,7 @@ import {
   enterSourceMode,
   exitSourceMode
 } from './helpers'
+import { clickViaMain } from './mainProcessInput'
 
 // Read the live `checked`/`enabled` state of a view-mode menu item straight
 // from the active application menu — the same Menu instance that
@@ -157,22 +158,25 @@ test.describe('View modes', () => {
   })
 })
 
-// Click into a top-level block the way parity-pg1-menu-state.spec.ts:41 does —
-// a real bubbling click on the content span drives Muya's selection handling,
-// which flips the `.mu-active` ancestor-chain class that focus mode keys off.
-const placeCaretIn = async(page: Page, selector: string): Promise<void> => {
+// Muya derives `.mu-active` (which focus mode keys off) from its own mouse
+// handling, so the caret has to land through a real click event sequence.
+// Playwright's CDP mouse needs an OS key window, which an unobtrusive run never
+// has, so the click is injected by the main process instead.
+const placeCaretIn = async(
+  app: ElectronApplication,
+  page: Page,
+  selector: string
+): Promise<void> => {
   await page.evaluate((sel) => {
     const span = document.querySelector(sel) as HTMLElement | null
     if (!span) throw new Error(`no element for ${sel}`)
     span.scrollIntoView({ block: 'center' })
-    const range = document.createRange()
-    range.selectNodeContents(span)
-    range.collapse(false)
-    const selection = window.getSelection()
-    selection?.removeAllRanges()
-    selection?.addRange(range)
-    span.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
   }, selector)
+  await page.waitForTimeout(120)
+  // Click just inside the start of the text: a paragraph's content span spans
+  // the full line width, and a click in the empty tail does not resolve to the
+  // block the way a click on a glyph does.
+  await clickViaMain(app, page, selector, { position: { x: 4 } })
   await page.waitForTimeout(120)
 }
 
@@ -185,8 +189,11 @@ test.describe('View modes — focus mode dims non-active blocks (item 250)', () 
   let page: Page
 
   test.beforeAll(async() => {
+    // Blank lines inside body text stay literal (they do not split the
+    // paragraph), so the list is what produces the second top-level block that
+    // focus mode dims.
     const launched = await launchWithMarkdown(
-      'first paragraph\n\nsecond paragraph\n\nthird paragraph\n'
+      'first paragraph\n\n- list item\n\nsecond paragraph\n'
     )
     app = launched.app
     page = launched.page
@@ -202,7 +209,7 @@ test.describe('View modes — focus mode dims non-active blocks (item 250)', () 
 
     // Put the caret in the FIRST paragraph; its top-level block must carry
     // `.mu-active`, the others must not.
-    await placeCaretIn(page, '.mu-container > p.mu-paragraph:nth-of-type(1) .mu-paragraph-content')
+    await placeCaretIn(app, page, '.mu-container > p.mu-paragraph:nth-of-type(1) .mu-paragraph-content')
 
     // The selection-change -> mu-active flip is async; poll for it.
     await expect
@@ -317,11 +324,13 @@ test.describe('View modes — typewriter scrolling (item 173)', () => {
 
     // Place the caret in a middle paragraph and type so the engine re-centers.
     await placeCaretIn(
+      app,
       page,
       '.mu-container > p.mu-paragraph:nth-of-type(40) .mu-paragraph-content'
     )
-    await page.click('.editor-component')
+    await clickViaMain(app, page, '.editor-component')
     await placeCaretIn(
+      app,
       page,
       '.mu-container > p.mu-paragraph:nth-of-type(40) .mu-paragraph-content'
     )

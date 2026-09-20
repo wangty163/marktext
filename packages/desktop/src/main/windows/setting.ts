@@ -5,7 +5,7 @@ import { electronLocalshortcut } from '@hfelix/electron-localshortcut'
 import BaseWindow, { WindowLifecycle, WindowType, type EnvLike, type PreferenceLike } from './base'
 import type Accessor from '../app/accessor'
 import { centerWindowOptions } from './utils'
-import { TITLE_BAR_HEIGHT, preferencesWinOptions, isLinux, isOsx } from '../config'
+import { TITLE_BAR_HEIGHT, preferencesWinOptions, isLinux, isOsx, unobtrusiveTestWindow } from '../config'
 import log from 'electron-log'
 
 class SettingWindow extends BaseWindow {
@@ -25,6 +25,17 @@ class SettingWindow extends BaseWindow {
   createWindow(category: string | null = null): BrowserWindow {
     const { menu: appMenu, env, keybindings, preferences } = this._accessor
     const winOptions: BrowserWindowConstructorOptions = Object.assign({}, preferencesWinOptions)
+    if (unobtrusiveTestWindow) {
+      // Same contract as the editor window: created hidden, revealed inactive
+      // and parked off-display by `bringToFront` so a run never covers the
+      // desktop. Background throttling stays off so the renderer keeps painting.
+      winOptions.show = false
+      winOptions.skipTaskbar = true
+      winOptions.webPreferences = {
+        ...winOptions.webPreferences,
+        backgroundThrottling: false
+      } as BrowserWindowConstructorOptions['webPreferences']
+    }
     centerWindowOptions(
       winOptions as BrowserWindowConstructorOptions & {
         width: number
@@ -71,6 +82,7 @@ class SettingWindow extends BaseWindow {
     win.once('ready-to-show', () => {
       this.lifecycle = WindowLifecycle.READY
       this.emit('window-ready')
+      if (unobtrusiveTestWindow) this.bringToFront()
     })
 
     win.on('focus', () => {

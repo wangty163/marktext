@@ -7,7 +7,7 @@ import { isChildOfDirectory, isSamePathSync } from 'common/filesystem/paths'
 import BaseWindow, { WindowLifecycle, WindowType } from './base'
 import type Accessor from '../app/accessor'
 import { ensureWindowPosition, zoomIn, zoomOut } from './utils'
-import { TITLE_BAR_HEIGHT, editorWinOptions, isLinux, isOsx } from '../config'
+import { TITLE_BAR_HEIGHT, editorWinOptions, isLinux, isOsx, unobtrusiveTestWindow } from '../config'
 import { showEditorContextMenu } from '../contextMenu/editor'
 import { loadMarkdownFile } from '../filesystem/markdown'
 import { switchLanguage } from '../spellchecker'
@@ -104,6 +104,18 @@ class EditorWindow extends BaseWindow {
       editorWinOptions,
       options
     )
+    if (unobtrusiveTestWindow) {
+      // The window is never shown, so its on-screen position is irrelevant;
+      // macOS also clamps far off-display coordinates back into range, which
+      // would put a "hidden" test window on top of the user's desktop.
+      Object.assign(winOptions, {
+        show: false,
+        skipTaskbar: true,
+        hasShadow: false
+      })
+      const webPreferences = winOptions.webPreferences as BrowserWindowConstructorOptions['webPreferences']
+      winOptions.webPreferences = { ...webPreferences, backgroundThrottling: false }
+    }
     if (isLinux) {
       winOptions.icon = path.join(process.cwd(), 'static', 'logo-96px.png')
     }
@@ -215,12 +227,18 @@ class EditorWindow extends BaseWindow {
         return
       }
 
-      const { response } = await dialog.showMessageBox(win!, {
-        type: 'warning',
-        buttons: ['Close', 'Reload', 'Keep It Open'],
-        message: 'MarkText has crashed',
-        detail: msg
-      })
+      // Nobody can answer a crash sheet during an automated run, and macOS
+      // would leave it pinned to the parked window on the user's desktop.
+      const response = unobtrusiveTestWindow
+        ? 0
+        : (
+          await dialog.showMessageBox(win!, {
+            type: 'warning',
+            buttons: ['Close', 'Reload', 'Keep It Open'],
+            message: 'MarkText has crashed',
+            detail: msg
+          })
+        ).response
 
       if (win!.id) {
         switch (response) {
