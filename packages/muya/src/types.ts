@@ -8,6 +8,7 @@ export interface IMuyaOptions {
     codeFontFamily?: string;
     wrapCodeBlocks?: boolean;
     focusMode: boolean;
+    preserveParagraphLineBreaks?: boolean;
     trimUnnecessaryCodeBlockEmptyLines: boolean;
     preferLooseListItem: boolean;
     autoPairBracket: boolean;

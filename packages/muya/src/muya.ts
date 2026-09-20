@@ -116,6 +116,7 @@ const PARSE_AFFECTING_OPTIONS = new Set<keyof IMuyaOptions>([
     'math',
     'footnote',
     'frontMatter',
+    'preserveParagraphLineBreaks',
     'trimUnnecessaryCodeBlockEmptyLines',
 ]);
 

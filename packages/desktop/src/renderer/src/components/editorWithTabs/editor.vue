@@ -1745,6 +1745,7 @@ onMounted(() => {
   const options: Record<string, unknown> = {
     focusMode: focus.value,
     markdown: props.markdown,
+    preserveParagraphLineBreaks: true,
     locale: getMuyaLocale(language.value),
     preferLooseListItem: preferLooseListItem.value,
     autoPairBracket: autoPairBracket.value,

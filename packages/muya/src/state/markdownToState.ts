@@ -22,6 +22,7 @@ interface IMarkdownToStateOptions {
     isGitlabCompatibilityEnabled: boolean;
     trimUnnecessaryCodeBlockEmptyLines: boolean;
     frontMatter: boolean;
+    preserveParagraphLineBreaks?: boolean;
 };
 
 const DEFAULT_OPTIONS = {
@@ -62,13 +63,19 @@ export class MarkdownToState {
         // markdownToState injects synthetic `block-end` markers (see the
         // blockquote/list/list_item/footnote cases below) to pop the parent
         // stack, so the working stream is wider than what `lexBlock` returns.
+        if (this._options.preserveParagraphLineBreaks && /^\n*$/.test(markdown))
+            return [{ name: 'paragraph', text: markdown.replace(/\n$/, '') }];
+
+        const sourceTokens = lexBlock(markdown, {
+            footnote,
+            math,
+            frontMatter,
+            isGitlabCompatibilityEnabled,
+        });
         const tokens: TBlockToken[] = this._preserveBlankLines(
-            lexBlock(markdown, {
-                footnote,
-                math,
-                frontMatter,
-                isGitlabCompatibilityEnabled,
-            }),
+            this._options.preserveParagraphLineBreaks
+                ? this._joinParagraphLines(sourceTokens)
+                : sourceTokens,
         );
 
         const states: TState[] = [];
@@ -84,6 +91,41 @@ export class MarkdownToState {
         }
 
         return states.length ? states : [{ name: 'paragraph', text: '' }];
+    }
+
+    // Keep prose as one editable text run. Markdown paragraph separators are
+    // source newlines, so deleting one must remove one character, not a block.
+    private _joinParagraphLines(tokens: TLexedToken[]): TLexedToken[] {
+        const result: TLexedToken[] = [];
+        for (let i = 0; i < tokens.length;) {
+            // Structural blocks already own their following separator.
+            if (tokens[i].type === 'space' && result.length) {
+                result.push(tokens[i++]);
+                continue;
+            }
+            const start = i;
+            let raw = '';
+            let paragraph: Extract<TLexedToken, { type: 'paragraph' }> | undefined;
+            while (tokens[i]?.type === 'paragraph' || tokens[i]?.type === 'space') {
+                const token = tokens[i++];
+                raw += token.raw;
+                if (token.type === 'paragraph')
+                    paragraph ??= token;
+            }
+            if (paragraph) {
+                // The serializer supplies the final file newline and the
+                // separator before a following structural Markdown block.
+                const text = raw.replace(i === tokens.length ? /\n$/ : /\n{1,2}$/, '');
+                result.push({ ...paragraph, raw, text });
+            }
+            else if (i > start) {
+                result.push(...tokens.slice(start, i));
+            }
+            else {
+                result.push(tokens[i++]);
+            }
+        }
+        return result;
     }
 
     private _preserveBlankLines(

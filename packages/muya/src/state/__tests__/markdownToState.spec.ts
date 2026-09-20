@@ -448,3 +448,32 @@ describe('markdownToState — HTML block vs single-image paragraph', () => {
         expect(states[0].text).toBe('<div>x</div>');
     });
 });
+
+describe('literal paragraph line breaks', () => {
+    it.each(['\n\n\n', 'alpha\n\nbeta\n', 'alpha\n\n\n\nbeta\n', '\nalpha\n', 'alpha\n\n\n'])('preserves %j through import and export', (markdown) => {
+        const states = new MarkdownToState({
+            footnote: false,
+            math: true,
+            isGitlabCompatibilityEnabled: true,
+            frontMatter: true,
+            trimUnnecessaryCodeBlockEmptyLines: false,
+            preserveParagraphLineBreaks: true,
+        }).generate(markdown);
+        expect(states).toEqual([{ name: 'paragraph', text: markdown.slice(0, -1) }]);
+        expect(new ExportMarkdown().generate(states)).toBe(markdown);
+    });
+});
+
+describe('literal prose around Markdown blocks', () => {
+    it.each(['# heading\n\nalpha\n\nbeta\n', 'alpha\n\nbeta\n\n# heading\n', 'alpha\n\n**beta**\n\n- item\n'])('round trips %j without adding a separator', (markdown) => {
+        const states = new MarkdownToState({
+            footnote: false,
+            math: true,
+            isGitlabCompatibilityEnabled: true,
+            frontMatter: true,
+            trimUnnecessaryCodeBlockEmptyLines: false,
+            preserveParagraphLineBreaks: true,
+        }).generate(markdown);
+        expect(new ExportMarkdown().generate(states)).toBe(markdown);
+    });
+});

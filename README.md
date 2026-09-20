@@ -130,8 +130,9 @@ MarkText is an open-source Markdown editor powered by the support of its communi
 ### Paragraph line breaks
 
 In ordinary body text, **Enter** inserts one newline in both the editor and the
-Markdown source. Press **Enter** twice to start a separate paragraph. **Shift+Enter**
-always inserts a newline within the current paragraph. Lists, headings, block
+Markdown source, including repeated presses on an empty line. Blank lines between
+ordinary text stay literal, equally spaced lines when saving, reopening or pasting.
+**Shift+Enter** inserts the same newline within the current paragraph. Lists, headings, block
 quotes, and block-conversion shortcuts retain their structural Enter behavior.
 
 ### Opening documents

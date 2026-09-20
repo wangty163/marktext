@@ -99,6 +99,7 @@ class JSONState {
             isGitlabCompatibilityEnabled,
             trimUnnecessaryCodeBlockEmptyLines,
             frontMatter,
+            preserveParagraphLineBreaks,
             math,
         } = this._muya.options;
 
@@ -107,6 +108,7 @@ class JSONState {
             isGitlabCompatibilityEnabled,
             trimUnnecessaryCodeBlockEmptyLines,
             frontMatter,
+            preserveParagraphLineBreaks,
             math,
         }).generate(markdown);
     }

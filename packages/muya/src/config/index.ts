@@ -310,6 +310,7 @@ export const MUYA_DEFAULT_OPTIONS = {
     fontSize: 16,
     lineHeight: 1.6,
     focusMode: false,
+    preserveParagraphLineBreaks: false,
     markdown: '',
     // Whether to trim the beginning and ending empty line in code block when open markdown.
     trimUnnecessaryCodeBlockEmptyLines: false,

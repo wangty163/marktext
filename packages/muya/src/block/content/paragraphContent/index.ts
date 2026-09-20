@@ -613,19 +613,7 @@ class ParagraphContent extends Format {
             this._enterInListItem(event);
         }
         else {
-            const { start } = this.getCursor()!;
-            // A second newline forms a Markdown paragraph separator. Consume
-            // the preceding soft break so it cannot remain as a phantom row.
-            if (this.text === '' || this.text[start.offset - 1] === '\n') {
-                super.enterHandler(event);
-                if (this.text.endsWith('\n')) {
-                    this.text = this.text.slice(0, -1);
-                    this.update();
-                }
-            }
-            else {
-                this.shiftEnterHandler(event);
-            }
+            this.shiftEnterHandler(event);
         }
     }
 

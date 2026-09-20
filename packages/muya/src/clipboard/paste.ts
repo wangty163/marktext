@@ -397,6 +397,7 @@ function applyParsedPaste(
         isGitlabCompatibilityEnabled,
         trimUnnecessaryCodeBlockEmptyLines,
         frontMatter,
+        preserveParagraphLineBreaks,
     } = muya.options;
 
     const states = new MarkdownToState({
@@ -405,6 +406,7 @@ function applyParsedPaste(
         isGitlabCompatibilityEnabled,
         trimUnnecessaryCodeBlockEmptyLines,
         frontMatter,
+        preserveParagraphLineBreaks,
     }).generate(markdown);
 
     if (states.length === 0)

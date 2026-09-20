@@ -121,28 +121,18 @@ describe('plain paragraph Enter inserts a single newline', () => {
         expect(content.getCursor()?.end.offset).toBe(6);
     });
 
-    it('a second Enter creates a paragraph without leaving a trailing soft break', async () => {
+    it('consecutive Enter presses each insert one literal newline', async () => {
         const muya = bootMuya('hello world\n');
         const content = contentByText(muya, 'hello world');
-        enterAt(muya, content, 11);
-        await flush();
-        expect(content.text).toBe('hello world\n');
-        enterAt(muya, content, 12);
-        await flush();
-        expect(muya.getState()).toEqual([
-            { name: 'paragraph', text: 'hello world' },
-            { name: 'paragraph', text: '' },
-        ]);
-        expect(muya.getMarkdown()).toBe('hello world\n\n');
-        const next = muya.editor.activeContentBlock!;
-        next.text = 'next';
-        await flush();
-        expect(muya.getMarkdown()).toBe('hello world\n\nnext\n');
-        next.setCursor(0, 0, true);
-        next.backspaceHandler(new KeyboardEvent('keydown', { key: 'Backspace' }));
-        await flush();
-        expect(content.text).toBe('hello worldnext');
-        expect(muya.getMarkdown()).toBe('hello worldnext\n');
+        for (let count = 1; count <= 4; count++) {
+            enterAt(muya, content, 10 + count);
+            await flush();
+            expect(muya.getState()).toEqual([
+                { name: 'paragraph', text: `hello world${'\n'.repeat(count)}` },
+            ]);
+            expect(muya.getMarkdown()).toBe(`hello world${'\n'.repeat(count + 1)}`);
+            expect(content.getCursor()?.start.offset).toBe(11 + count);
+        }
     });
 });
 
