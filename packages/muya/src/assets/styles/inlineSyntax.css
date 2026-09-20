@@ -142,14 +142,14 @@ code.mu-inline-rule {
     content: attr(data-character);
 }
 
-/* Keep an editable caret position after a trailing newline without adding a
-   second line break or a character to the Markdown/selection offsets. */
-.mu-soft-line-break-caret {
+/* Keep an editable caret position after a trailing line break (soft or hard)
+   without adding a second break or a character to the Markdown/selection
+   offsets. The span holds a real zero-width space text node — a pseudo-element
+   is not an editable position, so the browser would not paint an insertion
+   point inside it. Emitted by renderer/softLineBreak.ts and
+   renderer/hardLineBreak.ts. */
+.mu-caret-anchor {
     display: inline-block;
-}
-
-.mu-soft-line-break-caret::after {
-    content: '\200B';
 }
 
 /* hard line break and code line end */

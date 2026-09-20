@@ -18,6 +18,7 @@ import {
     getLegalOffset,
     getNodeAndOffset,
     getOffsetOfParagraph,
+    normalizeCaretAnchorOffset,
 } from './dom';
 import { SelectionCaretType, SelectionDirection, SelectionType } from './types';
 
@@ -183,8 +184,12 @@ class TextSelection {
         const anchorPath = anchorBlock.path;
         const focusPath = focusBlock.path;
 
-        const aOffset = getOffsetOfParagraph(anchorNode, anchorDomNode) + anchorOffset;
-        const fOffset = getOffsetOfParagraph(focusNode, focusDomNode) + focusOffset;
+        const aOffset
+            = getOffsetOfParagraph(anchorNode, anchorDomNode)
+                + normalizeCaretAnchorOffset(anchorNode, anchorOffset);
+        const fOffset
+            = getOffsetOfParagraph(focusNode, focusDomNode)
+                + normalizeCaretAnchorOffset(focusNode, focusOffset);
         const anchor = { offset: aOffset };
         const focus = { offset: fOffset };
 

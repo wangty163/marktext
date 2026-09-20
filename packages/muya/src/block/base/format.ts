@@ -25,7 +25,7 @@ import {
 } from '../../config';
 import { generator, tokenizer } from '../../inlineRenderer/lexer';
 import Selection, { getCursorReference } from '../../selection';
-import { getTextContent } from '../../selection/dom';
+import { getTextContent, OFFSET_BLACKLIST } from '../../selection/dom';
 import { isListItemState } from '../../state/types';
 import { conflict, isHTMLElement, isMouseEvent } from '../../utils';
 import { correctImageSrc, encodeImageSrc, getImageInfo } from '../../utils/image';
@@ -614,10 +614,7 @@ class Format extends Content {
 
         const { domNode } = this;
         const { start, end } = this.getCursor()!;
-        const textContent = getTextContent(domNode!, [
-            CLASS_NAMES.MU_MATH_RENDER,
-            CLASS_NAMES.MU_RUBY_RENDER,
-        ]);
+        const textContent = getTextContent(domNode!, OFFSET_BLACKLIST);
         const isInInlineMath = !!this._checkCursorInTokenType(
             textContent,
             start.offset,

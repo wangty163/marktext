@@ -1,6 +1,53 @@
 // utils used in selection/index.js
-import { CLASS_NAMES } from '../config';
+import { CLASS_NAMES, ZERO_WIDTH_SPACE } from '../config';
 import { isElement } from '../utils';
+
+/**
+ * Nodes whose rendered text must not shift a model offset as-is. Math and ruby
+ * render output that differs from their source, so they contribute nothing; the
+ * soft-line-break caret holds a zero-width space that only exists to give the
+ * browser a paintable insertion point after a trailing newline, so it
+ * contributes its real text minus that anchor character.
+ */
+export const OFFSET_BLACKLIST = [
+    CLASS_NAMES.MU_MATH_RENDER,
+    CLASS_NAMES.MU_RUBY_RENDER,
+    CLASS_NAMES.MU_CARET_ANCHOR,
+];
+
+function isCaretAnchor(node: Node | null | undefined): boolean {
+    return (
+        !!node
+        && isElement(node)
+        && node.classList.contains(CLASS_NAMES.MU_CARET_ANCHOR)
+    );
+}
+
+function withoutCaretAnchors(text: string): string {
+    return text.split(ZERO_WIDTH_SPACE).join('');
+}
+
+/**
+ * Translate a DOM offset taken inside the caret anchor into the equivalent
+ * number of real characters. The browser places the insertion point before the
+ * zero-width space and inserts typed text there, so the anchor can end up
+ * anywhere inside the span's text; counting it would push the model offset one
+ * past the end of the block.
+ */
+export function normalizeCaretAnchorOffset(node: Node, offset: number): number {
+    if (isCaretAnchor(node)) {
+        let effective = 0;
+        for (const child of Array.from(node.childNodes).slice(0, offset))
+            effective += withoutCaretAnchors(child.textContent ?? '').length;
+
+        return effective;
+    }
+
+    if (isCaretAnchor(node.parentNode))
+        return withoutCaretAnchors((node.textContent ?? '').slice(0, offset)).length;
+
+    return offset;
+}
 
 export function isContentDOM(element: HTMLElement) {
     return (
@@ -42,7 +89,9 @@ export function getTextContent(node: Node, blackList: string[] = []) {
             className => node.classList && node.classList.contains(className),
         )
     ) {
-        return text;
+        // Text typed at a trailing-newline caret lands inside the anchor span,
+        // so only its zero-width placeholder is dropped.
+        return isCaretAnchor(node) ? withoutCaretAnchors(node.textContent ?? '') : text;
     }
 
     if (node.nodeType === Node.TEXT_NODE) {
@@ -91,10 +140,7 @@ export function getOffsetOfParagraph(node: Node, paragraph: HTMLElement): number
     do {
         preSibling = preSibling.previousSibling;
         if (preSibling) {
-            offset += getTextContent(preSibling, [
-                CLASS_NAMES.MU_MATH_RENDER,
-                CLASS_NAMES.MU_RUBY_RENDER,
-            ]).length;
+            offset += getTextContent(preSibling, OFFSET_BLACKLIST).length;
         }
     } while (preSibling);
 
@@ -121,10 +167,7 @@ export function getNodeAndOffset(
 
     for (i = 0; i < len; i++) {
         const child = childNodes[i];
-        const textContent = getTextContent(child, [
-            CLASS_NAMES.MU_MATH_RENDER,
-            CLASS_NAMES.MU_RUBY_RENDER,
-        ]);
+        const textContent = getTextContent(child, OFFSET_BLACKLIST);
         const textLength = textContent.length;
 
         // Fix #1460 - put the cursor at the next text node or element if it can be put at the last of /^\n$/ or the next text node/element.

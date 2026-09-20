@@ -1,6 +1,6 @@
 import type { HardLineBreakToken, ISyntaxRenderOptions } from '../types';
 import type Renderer from './index';
-import { CLASS_NAMES } from '../../config';
+import { CLASS_NAMES, ZERO_WIDTH_SPACE } from '../../config';
 
 export default function hardLineBreak(
     this: Renderer,
@@ -13,6 +13,9 @@ export default function hardLineBreak(
         return [
             h(`span.${className}`, h(`span.${spaceClass}`, spaces)),
             h(`span.${CLASS_NAMES.MU_LINE_END}`, lineBreak),
+            // The line end is a block, so nothing follows it that the browser
+            // could paint a caret in.
+            h(`span.${CLASS_NAMES.MU_CARET_ANCHOR}`, ZERO_WIDTH_SPACE),
         ];
     }
     else {

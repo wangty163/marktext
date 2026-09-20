@@ -227,6 +227,20 @@ export const saveWithKeyboard = async(app: ElectronApplication): Promise<void> =
   })
 }
 
+// The engine parks a zero-width space after a trailing newline so the browser
+// has a layout position to paint the caret in. It never reaches the document
+// text, the saved file, or a model offset, so specs compare against the
+// stripped text.
+export const ZERO_WIDTH_SPACE = '\u200B'
+
+export const paragraphText = async(page: Page, index = 0): Promise<string> => {
+  const text = await page
+    .locator('.mu-paragraph-content')
+    .nth(index)
+    .evaluate((el) => el.textContent ?? '')
+  return text.split(ZERO_WIDTH_SPACE).join('')
+}
+
 export const waitForEditor = async(page: Page, timeout = 15000): Promise<void> => {
   await page.waitForSelector('.editor-component', { state: 'attached', timeout })
   await page.waitForFunction(

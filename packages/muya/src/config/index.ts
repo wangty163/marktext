@@ -6,6 +6,15 @@ export const HTML_TAGS = htmlTags;
 export const BLOCK_DOM_PROPERTY = '__MUYA_BLOCK__';
 
 /**
+ * Anchor character for DOM positions that must stay paintable but carry no
+ * model width. A collapsed selection inside an element whose only content comes
+ * from a CSS pseudo-element has no layout box, so the browser hides the caret;
+ * a real zero-width text node gives it a position to paint without adding a
+ * character to the document text.
+ */
+export const ZERO_WIDTH_SPACE = '\u200B';
+
+/**
  * [genUpper2LowerKeyHash generate constants map hash, the value is lowercase of the key,
  * also translate `_` to `-`]
  */
@@ -101,6 +110,7 @@ export const CLASS_NAMES = genUpper2LowerKeyHash([
     'MU_BUG',
     'MU_BULLET_LIST',
     'MU_BULLET_LIST_ITEM',
+    'MU_CARET_ANCHOR',
     'MU_CHECKBOX_CHECKED',
     'MU_CONTAINER_BLOCK',
     'MU_CONTAINER_PREVIEW',
@@ -468,6 +478,8 @@ export const DEFAULT_TURNDOWN_CONFIG = {
     ) {
         if (node && node.classList.contains(CLASS_NAMES.MU_SOFT_LINE_BREAK))
             return LINE_BREAK;
+        else if (node && node.classList.contains(CLASS_NAMES.MU_CARET_ANCHOR))
+            return '';
         else if (node && node.classList.contains(CLASS_NAMES.MU_HARD_LINE_BREAK))
             return `  ${LINE_BREAK}`;
         else if (node && node.classList.contains(CLASS_NAMES.MU_HARD_LINE_BREAK_SPACE))
