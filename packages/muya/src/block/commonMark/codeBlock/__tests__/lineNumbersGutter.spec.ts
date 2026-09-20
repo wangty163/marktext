@@ -43,20 +43,20 @@ function nextFrame(): Promise<void> {
 }
 
 // The `codeblock.content` leaf of the first code block in the document.
-interface CodeContentProbe {
+interface ICodeContentProbe {
     domNode: HTMLElement | null;
     setCursor: (begin: number, end: number, needUpdate?: boolean) => void;
     getCursor: () => { start: { offset: number } } | null;
 }
 
-function findCodeContent(muya: Muya): CodeContentProbe {
-    let target: CodeContentProbe | null = null;
+function findCodeContent(muya: Muya): ICodeContentProbe {
+    let target: ICodeContentProbe | null = null;
     const visit = (block: {
         constructor: { blockName?: string };
         children?: { forEach: (cb: (b: unknown) => void) => void };
     }) => {
         if (block.constructor.blockName === 'codeblock.content' && target === null)
-            target = block as unknown as CodeContentProbe;
+            target = block as unknown as ICodeContentProbe;
         block.children?.forEach(child => visit(child as typeof block));
     };
     visit(muya.editor.scrollPage as unknown as Parameters<typeof visit>[0]);

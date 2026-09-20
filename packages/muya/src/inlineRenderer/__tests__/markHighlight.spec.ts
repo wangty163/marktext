@@ -13,7 +13,7 @@ function boot(markdown: string): Muya {
     return muya;
 }
 
-describe('Obsidian-style ==highlight==', () => {
+describe('obsidian-style ==highlight==', () => {
     it('renders live and exports without changing the markdown', () => {
         const markdown = 'before ==**highlight**== after\n';
         const muya = boot(markdown);
