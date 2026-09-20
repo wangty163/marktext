@@ -30,13 +30,46 @@ export function getSelectionStart(): Node | null {
     return node && node.nodeType === Node.TEXT_NODE ? node.parentNode : node;
 }
 
-export function getCursorYOffset(paragraph: HTMLElement): { topOffset: number; bottomOffset: number } {
+/** Logical-line fallback source for when the caret has no client rect. */
+export interface ICursorLineFallback {
+    text: string;
+    offset: number;
+}
+
+function lineIndexOf(text: string, offset: number): number {
+    let line = 0;
+    const limit = Math.min(Math.max(offset, 0), text.length);
+    for (let i = 0; i < limit; i++) {
+        if (text.charCodeAt(i) === 10 /* \n */)
+            line++;
+    }
+
+    return line;
+}
+
+export function getCursorYOffset(
+    paragraph: HTMLElement,
+    fallback?: ICursorLineFallback,
+): { topOffset: number; bottomOffset: number } {
     const coords = getCursorCoords();
     // The collapsed caret can yield no client rects (e.g. an HTML/code block
     // boundary position), so `getCursorCoords()` returns null. Treat that as
     // "position unknown" and let arrow navigation leave the block.
-    if (coords == null)
+    if (coords == null) {
+        // One case does have a known position: a caret on an empty line inside a
+        // paragraph, where literal newlines keep several logical lines in a
+        // single block. Reporting 0/0 there makes ArrowUp/ArrowDown escape to
+        // the neighbouring block (or to the paragraph's first/last line), so
+        // fall back to the logical line index.
+        if (fallback) {
+            const topOffset = lineIndexOf(fallback.text, fallback.offset);
+            const bottomOffset = lineIndexOf(fallback.text, fallback.text.length) - topOffset;
+
+            return { topOffset, bottomOffset };
+        }
+
         return { topOffset: 0, bottomOffset: 0 };
+    }
 
     const { y } = coords;
     const { height, top } = paragraph.getBoundingClientRect();

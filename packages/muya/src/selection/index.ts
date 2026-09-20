@@ -1,5 +1,6 @@
 import type TableBodyCell from '../block/gfm/table/cell';
 import type { Muya } from '../muya';
+import type { ICursorLineFallback } from './cursorCoords';
 import type { IAnchorFocusInfo, IImageSelectionData, ISelection } from './types';
 import {
     getCursorCoords,
@@ -12,8 +13,8 @@ import TextSelection from './TextSelection';
 import { SelectionType } from './types';
 
 class Selection {
-    static getCursorYOffset(paragraph: HTMLElement) {
-        return getCursorYOffset(paragraph);
+    static getCursorYOffset(paragraph: HTMLElement, fallback?: ICursorLineFallback) {
+        return getCursorYOffset(paragraph, fallback);
     }
 
     static getCursorCoords(preferEnd = false) {

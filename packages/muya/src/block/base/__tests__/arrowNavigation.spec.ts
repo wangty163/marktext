@@ -530,3 +530,82 @@ describe('content arrowHandler — RTL cross-block navigation (#3568)', () => {
         expect(event.preventDefault).not.toHaveBeenCalled();
     });
 });
+
+// Body text keeps its blank lines as literal newlines inside ONE paragraph, so
+// a caret can sit on a logical line that is neither the block's first nor last.
+// happy-dom gives a collapsed caret no client rects, which used to mean
+// "position unknown" -> { topOffset: 0, bottomOffset: 0 } -> the multi-line
+// early-return never fired and ArrowUp/ArrowDown escaped to the neighbouring
+// block (in a browser: to the paragraph's first/last line). The logical-line
+// fallback in `getCursorYOffset` keeps navigation inside the block.
+describe('content arrowHandler — multi-line paragraphs stay inside the block', () => {
+    // 'abcdefghij' / '' / 'xy' — line starts are 0, 11 and 12.
+    const MULTILINE = 'abcdefghij\n\nxy';
+
+    it.each([
+        { key: 'ArrowDown' as const, offset: 11 },
+        { key: 'ArrowUp' as const, offset: 12 },
+    ])('$key on a middle logical line does not escape to the neighbouring block', async ({ key, offset }) => {
+        const muya = bootMuyaState([
+            { name: 'paragraph', text: 'before' },
+            { name: 'paragraph', text: MULTILINE },
+            { name: 'paragraph', text: 'after' },
+        ]);
+        const multiline = contentByText(muya, MULTILINE);
+
+        const event = arrowAt(muya, multiline, key, offset);
+        await flush();
+
+        // The browser owns in-block line movement, so the handler must leave the
+        // event alone and the caret where it was.
+        expect(event.preventDefault).not.toHaveBeenCalled();
+        expect(contentByText(muya, 'before').getCursor()).toBeNull();
+        expect(contentByText(muya, 'after').getCursor()).toBeNull();
+        expect(multiline.getCursor()?.start.offset).toBe(offset);
+    });
+
+    it('arrowUp on the FIRST logical line still crosses to the previous block', async () => {
+        const muya = bootMuyaState([
+            { name: 'paragraph', text: 'before' },
+            { name: 'paragraph', text: MULTILINE },
+        ]);
+        const multiline = contentByText(muya, MULTILINE);
+
+        const event = arrowAt(muya, multiline, 'ArrowUp', 3);
+        await flush();
+
+        expect(event.preventDefault).toHaveBeenCalled();
+        expect(contentByText(muya, 'before').getCursor()?.start.offset).toBe(3);
+    });
+
+    it('arrowDown on the LAST logical line still crosses to the next block', async () => {
+        const muya = bootMuyaState([
+            { name: 'paragraph', text: MULTILINE },
+            { name: 'paragraph', text: 'after' },
+        ]);
+        const multiline = contentByText(muya, MULTILINE);
+
+        const event = arrowAt(muya, multiline, 'ArrowDown', MULTILINE.length - 1);
+        await flush();
+
+        expect(event.preventDefault).toHaveBeenCalled();
+        expect(contentByText(muya, 'after').getCursor()).not.toBeNull();
+    });
+
+    it('a single-line block keeps the previous unknown-position behaviour', async () => {
+        // No literal newline means the fallback still reports 0/0, so an HTML or
+        // code block boundary position without client rects navigates cross-block
+        // exactly as before.
+        const muya = bootMuyaState([
+            { name: 'paragraph', text: 'before' },
+            { name: 'paragraph', text: 'single' },
+        ]);
+        const single = contentByText(muya, 'single');
+
+        const event = arrowAt(muya, single, 'ArrowUp', 2);
+        await flush();
+
+        expect(event.preventDefault).toHaveBeenCalled();
+        expect(contentByText(muya, 'before').getCursor()?.start.offset).toBe(2);
+    });
+});

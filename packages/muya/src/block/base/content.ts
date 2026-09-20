@@ -474,9 +474,10 @@ class Content extends TreeNode {
         const previousContentBlock = this.previousContentInContext();
         const nextContentBlock = this.nextContentInContext();
         const { start, end } = this.getCursor()!;
-        const { topOffset, bottomOffset } = Selection.getCursorYOffset(
-            this.domNode!,
-        );
+        const { topOffset, bottomOffset } = Selection.getCursorYOffset(this.domNode!, {
+            text: this.text,
+            offset: start.offset,
+        });
 
         // Just do nothing if the cursor is not collapsed or `shiftKey` pressed
         if (start.offset !== end.offset || event.shiftKey)
