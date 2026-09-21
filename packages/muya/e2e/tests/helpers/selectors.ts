@@ -24,6 +24,10 @@ export const editor = {
     orderList: '.mu-order-list',
     taskList: '.mu-task-list',
     taskListItem: '.mu-task-list-item',
+    // The task item's checkbox attachment: `input[type=checkbox]` in Chromium,
+    // a `span` in Firefox. Source of truth:
+    // packages/muya/src/block/gfm/taskListCheckbox/index.ts
+    taskListCheckbox: '.mu-task-list-checkbox',
     thematicBreak: '.mu-thematic-break',
     codeBlock: '.mu-code-block',
     fenceCode: '.mu-fence-code',

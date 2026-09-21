@@ -17,7 +17,7 @@ import { Search } from '../search';
 import Selection from '../selection';
 import JSONState from '../state';
 import { hasPick, isHTMLElement, isKeyboardEvent } from '../utils';
-import { getBlock } from '../utils/dom';
+import { getBlock, isFromNonEditableWidget } from '../utils/dom';
 import logger from '../utils/logger';
 import { attachDragDropImageHandlers } from './dragDropImage';
 import { attachLinkMouseHandlers } from './linkMouseEvents';
@@ -337,6 +337,20 @@ export class Editor {
                     break;
                 }
                 case 'input': {
+                    // Only the editable surface produces document edits. Widgets
+                    // embedded in the document are `contenteditable="false"` and
+                    // own their state — the task-list checkbox is an
+                    // `input[type=checkbox]`, so toggling it fires an `input`
+                    // event that bubbles here. Routing that to the block holding
+                    // the caret replayed a non-edit as an edit: auto-pair and
+                    // undo-boundary bookkeeping for text nobody changed, then
+                    // `setCursor`, which emits `selection-change`. Hosts read
+                    // that event as "the caret moved" and scroll it back into
+                    // view, so checking a box far from the caret yanked the
+                    // viewport to the caret.
+                    if (isFromNonEditableWidget(event))
+                        break;
+
                     anchorBlock.inputHandler(event);
                     break;
                 }

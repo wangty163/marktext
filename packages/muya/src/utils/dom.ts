@@ -61,6 +61,19 @@ export function getBlock(el: Element | null | undefined): Parent | Content | und
     return block;
 }
 
+// True when a DOM event was dispatched by a non-editable widget embedded in the
+// document (a `contenteditable="false"` subtree, e.g. the task-list checkbox's
+// `input[type=checkbox]`) instead of by the editable surface. Such an event
+// reports the widget's own state change and is never a document edit, so the
+// editor's event routing must not hand it to the block that owns the caret.
+export function isFromNonEditableWidget(event: Event): boolean {
+    const { target } = event;
+    if (!(target instanceof Element))
+        return false;
+
+    return target.closest('[contenteditable="false"]') !== null;
+}
+
 export function createDomNode(tagName: string, { classList = [], attributes = {}, datasets = {} }: ICreateDomOptions = {} as ICreateDomOptions) {
     const domNode = document.createElement(tagName);
 
