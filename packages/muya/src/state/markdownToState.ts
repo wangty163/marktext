@@ -72,10 +72,15 @@ export class MarkdownToState {
             frontMatter,
             isGitlabCompatibilityEnabled,
         });
+        const preserveLineBreaks = !!this._options.preserveParagraphLineBreaks;
         const tokens: TBlockToken[] = this._preserveBlankLines(
-            this._options.preserveParagraphLineBreaks
+            preserveLineBreaks
                 ? this._joinParagraphLines(sourceTokens)
                 : sourceTokens,
+            // In line-break-preserving mode a blank line between two blocks is
+            // content, not just a separator: keep it as an editable empty
+            // paragraph so the editor shows exactly the source's blank lines.
+            preserveLineBreaks,
         );
 
         const states: TState[] = [];
@@ -113,10 +118,25 @@ export class MarkdownToState {
                     paragraph ??= token;
             }
             if (paragraph) {
-                // The serializer supplies the final file newline and the
-                // separator before a following structural Markdown block.
-                const text = raw.replace(i === tokens.length ? /\n$/ : /\n{1,2}$/, '');
-                result.push({ ...paragraph, raw, text });
+                if (this._options.preserveParagraphLineBreaks) {
+                    // Every source blank line stays visible. Trailing blank
+                    // lines before a following structural block become their
+                    // own `space` token (later turned into empty paragraphs);
+                    // at end of document they stay inside the paragraph text,
+                    // matching what typing Enter there produces.
+                    const atEnd = i === tokens.length;
+                    const text = atEnd ? raw.replace(/\n$/, '') : raw.replace(/\n+$/, '');
+                    const trailing = atEnd ? '' : raw.slice(text.length);
+                    result.push({ ...paragraph, raw: text, text });
+                    if (trailing)
+                        result.push({ type: 'space', raw: trailing } as TLexedToken);
+                }
+                else {
+                    // The serializer supplies the final file newline and the
+                    // separator before a following structural Markdown block.
+                    const text = raw.replace(i === tokens.length ? /\n$/ : /\n{1,2}$/, '');
+                    result.push({ ...paragraph, raw, text });
+                }
             }
             else if (i > start) {
                 result.push(...tokens.slice(start, i));

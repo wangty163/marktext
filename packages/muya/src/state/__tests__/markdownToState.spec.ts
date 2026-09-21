@@ -477,3 +477,36 @@ describe('literal prose around Markdown blocks', () => {
         expect(new ExportMarkdown().generate(states)).toBe(markdown);
     });
 });
+
+describe('blank lines between blocks', () => {
+    function generatePreserving(markdown: string): IStateLike[] {
+        return new MarkdownToState({
+            footnote: false,
+            math: true,
+            isGitlabCompatibilityEnabled: true,
+            frontMatter: true,
+            trimUnnecessaryCodeBlockEmptyLines: false,
+            preserveParagraphLineBreaks: true,
+        }).generate(markdown) as unknown as IStateLike[];
+    }
+
+    // A blank line that separates two blocks is still a source character the
+    // user can see and delete, so it must survive import as an editable empty
+    // paragraph instead of vanishing into the block separator.
+    it.each([
+        ['# heading\n\ntext\n', ['atx-heading', '', 'text']],
+        ['text\n\n- item\n', ['text', '', 'bullet-list']],
+        ['```\ncode\n```\n\ntext\n', ['code-block', '', 'text']],
+        ['\n\n# heading\n', ['', '', 'atx-heading']],
+        ['text\n\n\n\n# heading\n', ['text', '', '', '', 'atx-heading']],
+    ])('renders every source blank line of %j as its own block', (markdown, shape) => {
+        const states = generatePreserving(markdown);
+        expect(states.map(state => state.name === 'paragraph' ? state.text : state.name)).toEqual(shape);
+        expect(new ExportMarkdown().generate(states as never)).toBe(markdown);
+    });
+
+    it('keeps end-of-document blank lines inside the last paragraph', () => {
+        const states = generatePreserving('text\n\n\n');
+        expect(states).toEqual([{ name: 'paragraph', text: 'text\n\n' }]);
+    });
+});
