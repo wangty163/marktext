@@ -11,9 +11,8 @@ import { editor } from '../helpers/selectors';
  * from a CSS pseudo-element does not qualify, so the caret visually disappears
  * even though the selection is still set.
  *
- * These specs assert the *layout* evidence of a caret (a non-zero-height
- * rectangle from the collapsed selection range) rather than a screenshot, so
- * they run headless and stay engine-independent.
+ * Check both the collapsed range geometry and native caret pixels: a zero-width
+ * inline-block can have a non-zero-height range without painting a caret.
  */
 
 interface CaretSnapshot {
@@ -97,6 +96,24 @@ test.describe('Enter at the end of the document keeps a visible caret', () => {
         const caret = await readCaret(page);
         expect(caret.isCollapsed, JSON.stringify(caret)).toBe(true);
         expect(caret.height, JSON.stringify(caret)).toBeGreaterThan(0);
+    });
+
+    test('the trailing caret is actually painted, not just measurable', async ({ page, browserName }) => {
+        test.skip(browserName !== 'chromium', 'Pixel check uses Chromium caret-animation support');
+        await page.evaluate(() => window.muya!.setContent('alpha'));
+        await clickEndOfLastText(page);
+        await page.keyboard.press('Enter');
+        await expect.poll(() => getMarkdown(page)).toBe('alpha\n\n');
+        // Freeze blinking so the screenshots differ only by the native caret.
+        await page.addStyleTag({ content: '* { caret-animation: manual !important; }' });
+        const clip = await page.evaluate(() => {
+            const rect = document.getSelection()!.getRangeAt(0).getBoundingClientRect();
+            return { x: rect.x - 2, y: rect.y, width: 5, height: rect.height };
+        });
+        expect(clip.height).toBeGreaterThan(0);
+        const visible = await page.screenshot({ clip, caret: 'initial' });
+        const hidden = await page.screenshot({ clip, caret: 'hide' });
+        expect(visible.equals(hidden), 'the native caret must contribute visible pixels').toBe(false);
     });
 
     test('the caret stays paintable across repeated trailing Enters', async ({ page }) => {

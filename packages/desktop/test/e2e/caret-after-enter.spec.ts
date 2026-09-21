@@ -36,6 +36,14 @@ interface Case {
 
 const CASES: Case[] = [
   {
+    name: 'plain paragraph',
+    file: 'paragraph.md',
+    markdown: 'alpha\n',
+    selector: '.mu-paragraph-content',
+    expectBlocks: ['alpha\nX'],
+    expectFile: 'alpha\nX\n'
+  },
+  {
     name: 'heading',
     file: 'heading.md',
     markdown: '# Title\n',
@@ -114,6 +122,18 @@ test.describe('Enter at the end of a block keeps a visible caret', () => {
     const metrics = await caretPaintMetrics(page)
     expect(metrics.rects, `${testCase.name}: ${JSON.stringify(metrics)}`).toBeGreaterThan(0)
     expect(metrics.height, `${testCase.name}: ${JSON.stringify(metrics)}`).toBeGreaterThan(0)
+
+    const viewport = await page.evaluate(() => {
+      const rect = document.getSelection()!.getRangeAt(0).getBoundingClientRect()
+      const editor = document.querySelector('.editor-component')!.getBoundingClientRect()
+      return { top: rect.top, bottom: rect.bottom, editorTop: editor.top, editorBottom: editor.bottom }
+    })
+    expect(viewport.top).toBeGreaterThanOrEqual(viewport.editorTop)
+    expect(viewport.bottom).toBeLessThanOrEqual(viewport.editorBottom)
+    await page.addStyleTag({ content: '* { caret-animation: manual !important; }' })
+    await test.info().attach('caret-after-enter', {
+      body: await page.screenshot({ caret: 'initial' }), contentType: 'image/png'
+    })
 
     // And it must be a real insertion point.
     await page.keyboard.type('X')

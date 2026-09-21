@@ -148,8 +148,10 @@ code.mu-inline-rule {
    is not an editable position, so the browser would not paint an insertion
    point inside it. Emitted by renderer/softLineBreak.ts and
    renderer/hardLineBreak.ts. */
+/* A zero-width inline-block has a range box but Chromium does not paint its
+   caret. Keep the anchor in the surrounding inline formatting context. */
 .mu-caret-anchor {
-    display: inline-block;
+    display: inline;
 }
 
 /* hard line break and code line end */

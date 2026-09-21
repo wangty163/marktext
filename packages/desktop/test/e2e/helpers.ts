@@ -542,8 +542,9 @@ export const endOfBlockPoint = async(
 /**
  * Layout evidence for the current caret. A collapsed range only paints an
  * insertion point when it resolves to a position the browser can lay out, so
- * `rects > 0 && height > 0` is the honest test for "the user can see the
- * caret" — a screenshot would only show the same thing less precisely.
+ * positive dimensions are necessary but do not prove visibility. Also check
+ * viewport bounds and actual caret pixels; zero-width inline-blocks can have
+ * a range box without painting an insertion point.
  */
 export const caretPaintMetrics = async(
   page: Page
