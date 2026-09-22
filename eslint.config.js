@@ -31,6 +31,8 @@ export default [
       'packages/muya/**',
       'packages/desktop/src/renderer/src/assets/symbolIcon/index.js',
       '**/*.min.json',
+      // Playwright writes these next to its config (packages/desktop/), not at
+      // the repo root, so they need the `**/` prefix to be ignored at all.
       '**/test-results/**',
       '**/playwright-report/**'
     ]

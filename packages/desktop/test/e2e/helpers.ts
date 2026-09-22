@@ -68,6 +68,8 @@ export interface LaunchOptions {
   // away from whoever is using the machine. Specs that must verify real window
   // activation opt out explicitly.
   visibleWindow?: boolean
+  // Variables that override the inherited environment of the app process.
+  env?: Record<string, string>
 }
 
 export const launchElectron = async(
@@ -91,6 +93,7 @@ export const launchElectron = async(
   env.PERF_TESTING = 'true'
   if (!options.visibleWindow) env.MARKTEXT_E2E_UNOBTRUSIVE = '1'
   if (options.suppressErrorDialog) env.MARKTEXT_ERROR_INTERACTION = '1'
+  Object.assign(env, options.env)
   const app = await _electron.launch({
     executablePath,
     args,

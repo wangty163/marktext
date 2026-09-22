@@ -18,8 +18,10 @@ const debug = logger('import markdown: ');
 
 interface IMarkdownToStateOptions {
     footnote: boolean;
-    math: boolean;
-    isGitlabCompatibilityEnabled: boolean;
+    texMathDollars: boolean;
+    texMathGfm: boolean;
+    texMathSingleBackslash: boolean;
+    texMathDoubleBackslash: boolean;
     trimUnnecessaryCodeBlockEmptyLines: boolean;
     frontMatter: boolean;
     preserveParagraphLineBreaks?: boolean;
@@ -27,8 +29,10 @@ interface IMarkdownToStateOptions {
 
 const DEFAULT_OPTIONS = {
     footnote: false,
-    math: true,
-    isGitlabCompatibilityEnabled: true,
+    texMathDollars: true,
+    texMathGfm: false,
+    texMathSingleBackslash: false,
+    texMathDoubleBackslash: false,
     trimUnnecessaryCodeBlockEmptyLines: false,
     frontMatter: true,
 };
@@ -54,8 +58,10 @@ export class MarkdownToState {
     private _convertMarkdownToState(markdown: string): TState[] {
         const {
             footnote = false,
-            math = true,
-            isGitlabCompatibilityEnabled = true,
+            texMathDollars = true,
+            texMathGfm = false,
+            texMathSingleBackslash = false,
+            texMathDoubleBackslash = false,
             trimUnnecessaryCodeBlockEmptyLines = false,
             frontMatter = true,
         } = this._options;
@@ -68,9 +74,11 @@ export class MarkdownToState {
 
         const sourceTokens = lexBlock(markdown, {
             footnote,
-            math,
+            texMathDollars,
             frontMatter,
-            isGitlabCompatibilityEnabled,
+            texMathGfm,
+            texMathSingleBackslash,
+            texMathDoubleBackslash,
         });
         const preserveLineBreaks = !!this._options.preserveParagraphLineBreaks;
         const tokens: TBlockToken[] = this._preserveBlankLines(
@@ -274,12 +282,14 @@ export class MarkdownToState {
 
                 let listState: IOrderListState | IBulletListState | ITaskListState;
                 if (listType === 'order') {
+                    const sourceMarkers = token.items.map((item: ListItemToken) => item.orderMarker);
                     listState = {
                         name: 'order-list',
                         meta: {
                             loose,
                             start: /^\d+$/.test(String(start)) ? Number(start) : 1,
                             delimiter: bulletMarkerOrDelimiter || '.',
+                            ...(sourceMarkers.every((marker): marker is string => !!marker) ? { sourceMarkers } : {}),
                         },
                         children: [],
                     };
@@ -314,7 +324,7 @@ export class MarkdownToState {
             }
 
             case 'list_item': {
-                const { listItemType, checked } = token;
+                const { listItemType, checked, orderMarker } = token;
                 let itemState: IListItemState | ITaskListItemState;
                 if (listItemType === 'task') {
                     itemState = {
@@ -326,6 +336,7 @@ export class MarkdownToState {
                 else {
                     itemState = {
                         name: 'list-item',
+                        ...(orderMarker ? { meta: { orderMarker } } : {}),
                         children: [],
                     };
                 }

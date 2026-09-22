@@ -19,8 +19,10 @@ function generate(
 ): IStateLike[] {
     return new MarkdownToState({
         footnote: false,
-        math: false,
-        isGitlabCompatibilityEnabled: false,
+        texMathDollars: false,
+        texMathGfm: false,
+        texMathSingleBackslash: false,
+        texMathDoubleBackslash: false,
         trimUnnecessaryCodeBlockEmptyLines: false,
         frontMatter: false,
         ...options,
@@ -300,6 +302,22 @@ describe('markdownToState — task list nesting (marktext 23435ce6)', () => {
         expect(out).toContain('[^1]: definition');
     });
 
+    it('keeps definitions packed one per line as siblings', () => {
+        const states = generate(
+            `a[^1] b[^2] c[^3]
+
+[^1]: one
+[^2]: two
+[^3]: three`,
+            { footnote: true },
+        );
+        const footnotes = states.filter(s => s.name === 'footnote');
+        expect(footnotes.map(f => f.meta!.identifier)).toEqual(['1', '2', '3']);
+        // None of them may have swallowed a sibling as a nested child.
+        for (const footnote of footnotes)
+            expect(footnote.children!.map(c => c.name)).toEqual(['paragraph']);
+    });
+
     it('keeps tight (no blank lines) nested task lists nested', () => {
         const md = `- [ ] task1
   - [ ] task1_1
@@ -453,8 +471,10 @@ describe('literal paragraph line breaks', () => {
     it.each(['\n\n\n', 'alpha\n\nbeta\n', 'alpha\n\n\n\nbeta\n', '\nalpha\n', 'alpha\n\n\n'])('preserves %j through import and export', (markdown) => {
         const states = new MarkdownToState({
             footnote: false,
-            math: true,
-            isGitlabCompatibilityEnabled: true,
+            texMathDollars: true,
+            texMathGfm: true,
+            texMathSingleBackslash: false,
+            texMathDoubleBackslash: false,
             frontMatter: true,
             trimUnnecessaryCodeBlockEmptyLines: false,
             preserveParagraphLineBreaks: true,
@@ -468,8 +488,10 @@ describe('literal prose around Markdown blocks', () => {
     it.each(['# heading\n\nalpha\n\nbeta\n', 'alpha\n\nbeta\n\n# heading\n', 'alpha\n\n**beta**\n\n- item\n'])('round trips %j without adding a separator', (markdown) => {
         const states = new MarkdownToState({
             footnote: false,
-            math: true,
-            isGitlabCompatibilityEnabled: true,
+            texMathDollars: true,
+            texMathGfm: true,
+            texMathSingleBackslash: false,
+            texMathDoubleBackslash: false,
             frontMatter: true,
             trimUnnecessaryCodeBlockEmptyLines: false,
             preserveParagraphLineBreaks: true,
@@ -482,8 +504,10 @@ describe('blank lines between blocks', () => {
     function generatePreserving(markdown: string): IStateLike[] {
         return new MarkdownToState({
             footnote: false,
-            math: true,
-            isGitlabCompatibilityEnabled: true,
+            texMathDollars: true,
+            texMathGfm: true,
+            texMathSingleBackslash: false,
+            texMathDoubleBackslash: false,
             frontMatter: true,
             trimUnnecessaryCodeBlockEmptyLines: false,
             preserveParagraphLineBreaks: true,

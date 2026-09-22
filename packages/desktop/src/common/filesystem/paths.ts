@@ -5,8 +5,6 @@ import { minimatch } from 'minimatch'
 
 import { MARKDOWN_EXTENSIONS, EDITABLE_EXTENSIONS, hasEditableExtension } from '../textFiles'
 
-const isOsx = process.platform === 'darwin'
-
 export { MARKDOWN_EXTENSIONS, EDITABLE_EXTENSIONS } from '../textFiles'
 
 export const MARKDOWN_INCLUSIONS: readonly string[] = Object.freeze(
@@ -162,20 +160,6 @@ export const isChildOfDirectory = (dir: string, child: string): boolean => {
   if (!dir || !child) return false
   const relative = path.relative(dir, child)
   return !!relative && !relative.startsWith('..') && !path.isAbsolute(relative)
-}
-
-export const getResourcesPath = (): string => {
-  let resPath = process.resourcesPath
-  if (process.env.NODE_ENV === 'development') {
-    // Default locations:
-    //   Linux/Windows: node_modules/electron/dist/resources/
-    //   macOS: node_modules/electron/dist/Electron.app/Contents/Resources
-    if (isOsx) {
-      resPath = path.join(resPath, '../..')
-    }
-    resPath = path.join(resPath, '../../../../resources')
-  }
-  return resPath
 }
 
 /**

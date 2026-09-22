@@ -5,8 +5,10 @@ import ExportMarkdown from '../stateToMarkdown';
 
 const options = {
     footnote: false,
-    math: false,
-    isGitlabCompatibilityEnabled: false,
+    texMathDollars: false,
+    texMathGfm: false,
+    texMathSingleBackslash: false,
+    texMathDoubleBackslash: false,
     trimUnnecessaryCodeBlockEmptyLines: false,
     frontMatter: false,
 };
