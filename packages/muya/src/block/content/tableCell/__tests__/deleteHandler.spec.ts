@@ -100,8 +100,13 @@ describe('forward Delete at the end of a table\'s last cell (#5386)', () => {
         deleteAtEnd(muya, cells[3]);
 
         expect(() => muya.flush()).not.toThrow();
-        expect(muya.getMarkdown()).toBe(
-            '- a\n\n  | x   | y   |\n  | --- | --- |\n  | 1   | 2b  |\n\n  - c\n',
-        );
+        // No blank line before the moved sublist: every list here is tight and
+        // the gaps that do exist are editable empty paragraphs of their own, so
+        // the serializer adds no loose-list separator. Reopening this markdown
+        // yields the same state and the same text.
+        const merged = '- a\n\n  | x   | y   |\n  | --- | --- |\n  | 1   | 2b  |\n  - c\n';
+        expect(muya.getMarkdown()).toBe(merged);
+        muya.setContent(merged);
+        expect(muya.getMarkdown()).toBe(merged);
     });
 });

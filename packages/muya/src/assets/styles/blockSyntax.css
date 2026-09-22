@@ -987,9 +987,10 @@ pre.mu-active.mu-fenced-code::after {
    cross-cell selection overlay (`::before`, z-index 1) so a dragged
    rectangle tints behind the text instead of hiding it (#5265). */
 .mu-table-cell-content {
-    min-width: 2em;
     position: relative;
     z-index: 2;
+
+    min-width: 2em;
 }
 
 /* Footnote definition block — port of marktext's `figure[data-role='FOOTNOTE']`

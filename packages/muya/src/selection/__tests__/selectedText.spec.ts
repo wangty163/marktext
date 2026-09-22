@@ -57,7 +57,9 @@ describe('muya.getSelectedText', () => {
     const spans = [
         { name: 'paragraphs', markdown: 'First\n\nMiddle\n\nLast\n', expected: 'rst\n\nMiddle\n\nLas' },
         { name: 'nested lists', markdown: 'First\n\n- beta\n  - gamma\n\nLast\n', expected: 'rst\n\nbeta\ngamma\n\nLas' },
-        { name: 'loose lists', markdown: 'First\n\n- beta\n\n- gamma\n\nLast\n', expected: 'rst\n\nbeta\n\ngamma\n\nLas' },
+        // The blank line between the two items is an editable empty paragraph
+        // here, so the selection crosses one more block than a folded separator.
+        { name: 'loose lists', markdown: 'First\n\n- beta\n\n- gamma\n\nLast\n', expected: 'rst\n\nbeta\n\n\n\ngamma\n\nLas' },
         { name: 'quoted paragraphs', markdown: 'First\n\n> beta\n>\n> gamma\n\nLast\n', expected: 'rst\n\nbeta\n\ngamma\n\nLas' },
         { name: 'code and its language', markdown: 'First\n\n```js\nconst x = 1\nline two\n```\n\nLast\n', expected: 'rst\n\njs\nconst x = 1\nline two\n\nLas' },
         { name: 'table cells', markdown: 'First\n\n| a | b |\n| --- | --- |\n| c | d |\n\nLast\n', expected: 'rst\n\na\nb\nc\nd\n\nLas' },

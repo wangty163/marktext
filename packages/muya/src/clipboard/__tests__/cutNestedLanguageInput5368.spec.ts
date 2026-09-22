@@ -91,12 +91,17 @@ describe('cut from the language line of a nested code block (#5368)', () => {
 
         cutFromLanguageInput(muya, 1, { blockName: 'codeblock.content', text: 'const', offset: 3 });
 
-        const [list] = settledState(muya) as Array<{ name: string; children: Array<{ children: unknown[] }> }>;
+        // The blank line that separated the two items is an editable empty
+        // paragraph here, so it splits the list in two; the markdown is unchanged.
+        const [list, gap, rest] = settledState(muya) as Array<{ name: string; children: Array<{ children: unknown[] }> }>;
         expect(list.name).toBe('bullet-list');
         expect(list.children.map(item => item.children)).toEqual([
-            [paragraph('item one'), paragraph('jst a = 1')],
-            [paragraph('item two')],
+            [paragraph('item one'), paragraph(''), paragraph('jst a = 1')],
         ]);
+        expect(gap).toEqual(paragraph(''));
+        expect(rest.name).toBe('bullet-list');
+        expect(rest.children.map(item => item.children)).toEqual([[paragraph('item two')]]);
+        expect(muya.getMarkdown()).toBe('- item one\n\n  jst a = 1\n\n- item two\n');
     });
 
     it('keeps the quote when the cut ends in the same code block', () => {
@@ -116,7 +121,7 @@ describe('cut from the language line of a nested code block (#5368)', () => {
 
         const [list] = settledState(muya) as Array<{ name: string; children: Array<{ children: unknown[] }> }>;
         expect(list.name).toBe('bullet-list');
-        expect(list.children[0].children).toEqual([paragraph('item one'), paragraph('jter')]);
+        expect(list.children[0].children).toEqual([paragraph('item one'), paragraph(''), paragraph('jter')]);
     });
 
     it('still collapses a top-level code block into a paragraph', () => {

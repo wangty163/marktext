@@ -1595,7 +1595,15 @@ class Format extends Content {
     // Markdown ends a paragraph at a blank line, so Shift+Enter must not leave an
     // empty line in the block. When the caret's line is blank up to the caret,
     // removes that line break and returns true: handle the key as Enter.
+    //
+    // Not so under `preserveParagraphLineBreaks` (how the desktop app runs): there
+    // a blank line inside a paragraph is content the user can see and delete, the
+    // serializer writes it back verbatim, so Shift+Enter keeps appending to the
+    // same block instead of splitting it (#5300 vs. literal line breaks).
     protected dropSoftBreakBeforeCursor(): boolean {
+        if (this.muya.options.preserveParagraphLineBreaks)
+            return false;
+
         const { text } = this;
         const { start, end } = this.getCursor()!;
         const head = text.substring(0, start.offset);

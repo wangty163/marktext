@@ -119,7 +119,11 @@ describe('cross-block cut ending in a code block\'s language line (#5371)', () =
         const [first, list] = settledState(muya) as [unknown, { name: string; children: Array<{ children: unknown[] }> }];
         expect(first).toEqual(paragraph('in'));
         expect(list.name).toBe('bullet-list');
-        expect(list.children.map(item => item.children)).toEqual([[codeBlock('js', 'code'), paragraph('tail')]]);
+        // The blank line before `tail` is an editable empty paragraph here, so it
+        // survives the cut instead of collapsing into the block separator.
+        expect(list.children.map(item => item.children)).toEqual([
+            [codeBlock('js', 'code'), paragraph(''), paragraph('tail')],
+        ]);
         expectLanguageInputs(muya, ['js']);
     });
 

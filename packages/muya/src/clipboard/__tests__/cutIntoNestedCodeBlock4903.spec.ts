@@ -85,7 +85,7 @@ describe('cross-block cut into a nested code, math or html block (#4903, #5148)'
             kind: 'code block in a list item',
             markdown: 'intro\n\n- item\n\n  ```js\n  code\n  ```\n\n  tail\n',
             codeOffset: 2,
-            expected: 'inde\n\n- tail\n',
+            expected: 'inde\n\n- \n\n  tail\n',
         },
         {
             kind: 'math block in a quote',
@@ -97,7 +97,7 @@ describe('cross-block cut into a nested code, math or html block (#4903, #5148)'
             kind: 'html block in a list item',
             markdown: 'intro\n\n- item\n\n  <div>\n  hi\n  </div>\n\n  tail\n',
             codeOffset: 5,
-            expected: 'in\nhi\n</div>\n\n- tail\n',
+            expected: 'in\nhi\n</div>\n\n- \n\n  tail\n',
         },
     ])('removes the $kind once and keeps what follows it', ({ markdown, codeOffset, expected }) => {
         const muya = bootMuya(markdown);

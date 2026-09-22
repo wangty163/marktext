@@ -5,6 +5,7 @@ import type Parent from '../../block/base/parent';
 import type { Muya } from '../../muya';
 import type { TState } from '../../state/types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { ZERO_WIDTH_SPACE } from '../../config';
 import { Muya as MuyaClass } from '../../muya';
 import { SelectionCaretType, SelectionDirection } from '../../selection/types';
 
@@ -165,7 +166,10 @@ describe('cross-block cut ending in a table', () => {
 
         const cells = contentBlocks(muya).filter(block => block.blockName === 'table.cell.content');
         expect(cells.map(cell => cell.text)).toEqual(['', '1']);
-        expect(cells.map(cell => cell.domNode!.textContent)).toEqual(['', '1']);
+        // An emptied cell renders a zero-width caret anchor so the browser still
+        // has a paintable insertion point in it; the model text stays empty and
+        // OFFSET_BLACKLIST keeps the anchor out of every offset.
+        expect(cells.map(cell => cell.domNode!.textContent)).toEqual([ZERO_WIDTH_SPACE, '1']);
         expectNoDrift(muya);
     });
 
@@ -178,7 +182,12 @@ describe('cross-block cut ending in a table', () => {
 
         const cells = contentBlocks(muya).filter(block => block.blockName === 'table.cell.content');
         expect(cells.map(cell => cell.text)).toEqual(['a1', '', '', '']);
-        expect(cells.map(cell => cell.domNode!.textContent)).toEqual(['a1', '', '', '']);
+        expect(cells.map(cell => cell.domNode!.textContent)).toEqual([
+            'a1',
+            ZERO_WIDTH_SPACE,
+            ZERO_WIDTH_SPACE,
+            ZERO_WIDTH_SPACE,
+        ]);
         expectNoDrift(muya);
     });
 

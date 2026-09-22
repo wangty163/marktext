@@ -139,7 +139,7 @@ describe('enter on `$$` — converts to a math-block', () => {
 // block, deleting the rest of its text.
 describe('enter on a paragraph that only starts with `$$` — NOT converted (#5364)', () => {
     for (const text of ['$$ E=MC^2 $$', '$$x', '$$a$$ trailing text']) {
-        it(`keeps ${JSON.stringify(text)} as a paragraph and splits it`, async () => {
+        it(`keeps ${JSON.stringify(text)} as a paragraph with its text intact`, async () => {
             const muya = bootMuya('seed\n');
             const content = contentByText(muya, 'seed');
 
@@ -147,8 +147,11 @@ describe('enter on a paragraph that only starts with `$$` — NOT converted (#53
 
             await flush();
             const state = muya.getState();
-            expect(state.map(block => block.name)).toEqual(['paragraph', 'paragraph']);
-            expect((state[0] as { text: string }).text).toBe(text);
+            // Enter appends a literal newline to the same paragraph here instead
+            // of splitting the block. What #5364 guards still holds: the text is
+            // neither turned into an empty math block nor dropped.
+            expect(state.map(block => block.name)).toEqual(['paragraph']);
+            expect((state[0] as { text: string }).text).toBe(`${text}\n`);
         });
     }
 });

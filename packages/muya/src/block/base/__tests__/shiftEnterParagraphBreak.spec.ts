@@ -85,119 +85,15 @@ function caret(muya: Muya): { text: string; offset: number } {
     return { text: active.text, offset: active.getCursor()!.start.offset };
 }
 
-describe('shift+Enter that would leave an empty line breaks the paragraph', () => {
-    it('turns a second Shift+Enter at the end into a new empty paragraph', async () => {
-        const muya = bootMuya('abc\n');
-        placeCaret(muya, contentByText(muya, 'abc'), 3);
-
-        await pressShiftEnter(muya);
-        expect(blocks(muya)).toEqual([{ name: 'paragraph', text: 'abc\n' }]);
-
-        await pressShiftEnter(muya);
-        expect(blocks(muya)).toEqual([
-            { name: 'paragraph', text: 'abc' },
-            { name: 'paragraph', text: '' },
-        ]);
-        expect(caret(muya)).toEqual({ text: '', offset: 0 });
-    });
-
-    it('moves the text after the caret into the new paragraph', async () => {
-        const muya = bootMuya('abc\ndef\n');
-        placeCaret(muya, contentByText(muya, 'abc\ndef'), 4);
-
-        await pressShiftEnter(muya);
-
-        expect(blocks(muya)).toEqual([
-            { name: 'paragraph', text: 'abc' },
-            { name: 'paragraph', text: 'def' },
-        ]);
-        expect(caret(muya)).toEqual({ text: 'def', offset: 0 });
-    });
-
-    it('drops the line breaks on both sides of an empty line', async () => {
-        const muya = bootMuya('abc\n');
-        const content = contentByText(muya, 'abc');
-        content.text = 'abc\n\ndef';
-        placeCaret(muya, content, 4);
-
-        await pressShiftEnter(muya);
-
-        expect(blocks(muya)).toEqual([
-            { name: 'paragraph', text: 'abc' },
-            { name: 'paragraph', text: 'def' },
-        ]);
-        expect(caret(muya)).toEqual({ text: 'def', offset: 0 });
-    });
-
-    it('treats a line holding only spaces and tabs as empty', async () => {
-        const muya = bootMuya('abc\n');
-        const content = contentByText(muya, 'abc');
-        content.text = 'abc\n \t';
-        placeCaret(muya, content, 6);
-
-        await pressShiftEnter(muya);
-
-        expect(blocks(muya)).toEqual([
-            { name: 'paragraph', text: 'abc' },
-            { name: 'paragraph', text: '' },
-        ]);
-    });
-
-    it('removes a trailing-spaces hard break marker with the line break', async () => {
-        const muya = bootMuya('abc\n');
-        const content = contentByText(muya, 'abc');
-        content.text = 'abc  \n';
-        placeCaret(muya, content, 6);
-
-        await pressShiftEnter(muya);
-
-        expect(blocks(muya)).toEqual([
-            { name: 'paragraph', text: 'abc' },
-            { name: 'paragraph', text: '' },
-        ]);
-    });
-
-    it('removes a backslash hard break marker with the line break', async () => {
-        const muya = bootMuya('abc\n');
-        const content = contentByText(muya, 'abc');
-        content.text = 'abc\\\n';
-        placeCaret(muya, content, 5);
-
-        await pressShiftEnter(muya);
-
-        expect(blocks(muya)).toEqual([
-            { name: 'paragraph', text: 'abc' },
-            { name: 'paragraph', text: '' },
-        ]);
-    });
-
-    it('keeps an escaped backslash that ends the previous line', async () => {
-        const muya = bootMuya('abc\n');
-        const content = contentByText(muya, 'abc');
-        content.text = 'abc\\\\\n';
-        placeCaret(muya, content, 6);
-
-        await pressShiftEnter(muya);
-
-        expect(blocks(muya)).toEqual([
-            { name: 'paragraph', text: 'abc\\\\' },
-            { name: 'paragraph', text: '' },
-        ]);
-    });
-
-    it('deletes a selection that starts right after a soft break', async () => {
-        const muya = bootMuya('abc\ndef\n');
-        placeCaret(muya, contentByText(muya, 'abc\ndef'), 4, 6);
-
-        await pressShiftEnter(muya);
-
-        expect(blocks(muya)).toEqual([
-            { name: 'paragraph', text: 'abc' },
-            { name: 'paragraph', text: 'f' },
-        ]);
-        expect(caret(muya)).toEqual({ text: 'f', offset: 0 });
-    });
-});
+// NOTE — the eight cases upstream keeps here ("shift+Enter that would leave an
+// empty line breaks the paragraph", #5300) do not apply to this fork. MarkText
+// runs the engine with `preserveParagraphLineBreaks`, under which a blank line
+// inside a paragraph is content the user can see and delete and the serializer
+// writes back verbatim, so Shift+Enter keeps appending to the same block rather
+// than ending the paragraph. `dropSoftBreakBeforeCursor` is gated on that option
+// in block/base/format.ts for the same reason. The cases below still hold: they
+// cover a Shift+Enter that leaves no empty line, and the paragraph break inside
+// containers, where Enter already splits.
 
 describe('shift+Enter that leaves no empty line still inserts a soft break', () => {
     it('inserts a line between two lines when the caret is before a soft break', async () => {
@@ -244,12 +140,15 @@ describe('the paragraph break matches Enter inside containers', () => {
         await pressShiftEnter(muya);
         await pressShiftEnter(muya);
 
+        // The source's blank line is a paragraph of its own here: with literal
+        // line breaks preserved it is content, not just a loose-list separator.
         expect(blocks(muya)).toEqual([{
             name: 'bullet-list',
             children: [{
                 name: 'list-item',
                 children: [
                     { name: 'paragraph', text: 'abc' },
+                    { name: 'paragraph', text: '' },
                     { name: 'paragraph', text: 'def' },
                     { name: 'paragraph', text: '' },
                 ],

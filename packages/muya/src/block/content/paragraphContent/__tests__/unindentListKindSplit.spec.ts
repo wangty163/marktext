@@ -218,7 +218,14 @@ describe('paragraphContent — Shift+Tab across plain and task lists (#5341)', (
         assertListsHoldTheirOwnItems(state);
         expect(state.map(block => block.name)).toEqual(['bullet-list', 'task-list']);
         const outdented = (state[1] as { children: TState[] }).children[0] as { children: TState[] };
-        expect(outdented.children.map(child => child.name)).toEqual(['paragraph', 'task-list', 'paragraph']);
+        // Four, not three: the blank line before `c` travels up as an editable
+        // empty paragraph of its own.
+        expect(outdented.children.map(child => child.name)).toEqual([
+            'paragraph',
+            'task-list',
+            'paragraph',
+            'paragraph',
+        ]);
     });
 
     it('leaves items of the same kind in the outer list', () => {

@@ -211,7 +211,12 @@ describe('forward Delete merging a list item that owns a nested sublist (#1845)'
     it('moves the nested sublist of a task list item as well', () => {
         const muya = bootMuya('- [ ] a\n- [ ] C\n  - D\n');
 
-        emptyFirstItemThenDelete(muya);
+        // One Delete, not the helper's two: this source has no blank line, so
+        // there is no empty gap for a first Delete to consume. A second one
+        // would go on to merge the sublist's own paragraph into the text.
+        const first = contentByText(muya, 'a');
+        first.text = '';
+        deleteAtEnd(muya, contentByText(muya, ''));
 
         muya.flush();
         expect(muya.getMarkdown()).toBe('- [ ] C\n  - D\n');
@@ -232,7 +237,13 @@ describe('forward Delete merging the first paragraph of a blockquote (#5423)', (
     it('keeps the rest of a blockquote nested in a list item quoted', () => {
         const muya = bootMuya('- a\n\n  > p\n  >\n  > q\n');
 
-        deleteAtEnd(muya, contentByText(muya, 'a'));
+        // Three Deletes, not one: the blank line after `- a` and the empty quoted
+        // line are literal content here, so each takes its own Delete before the
+        // merge reaches `q`. What #5423 guards still holds — `q` stays quoted.
+        const a = contentByText(muya, 'a');
+        deleteAtEnd(muya, a);
+        deleteAtEnd(muya, a);
+        deleteAtEnd(muya, a);
 
         muya.flush();
         expect(muya.getMarkdown()).toBe('- ap\n\n  > q\n');

@@ -108,7 +108,10 @@ describe('paragraphContent — Shift+Tab still outdents nested list items', () =
         ['nested bullet item (INDENT)', '- a\n  - b\n', 'b', '- a\n- b\n'],
         ['nested ordered item (INDENT)', '1. a\n   1. b\n', 'b', '1. a\n2. b\n'],
         ['nested task item (INDENT)', '- [ ] a\n  - [ ] b\n', 'b', '- [ ] a\n- [ ] b\n'],
-        ['nested item with trailing paragraph (#4899)', '- a\n  - b\n\n  c\n', 'b', '- a\n\n- b\n\n  c\n'],
+        // No blank line between `a` and `b`: the source's gap sat before `c`, so
+        // it travels down with the outdented item instead of separating the two
+        // top-level items (every list here is tight; gaps are empty paragraphs).
+        ['nested item with trailing paragraph (#4899)', '- a\n  - b\n\n  c\n', 'b', '- a\n- b\n\n  c\n'],
         ['nested list as the first child of an item (REPLACEMENT)', '- - b\n', 'b', '- b\n'],
     ];
 
