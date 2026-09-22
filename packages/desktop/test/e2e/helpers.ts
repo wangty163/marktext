@@ -85,9 +85,16 @@ export const launchElectron = async(
   // Pass project root as entry so Electron reads package.json and getAppPath() returns project root.
   // Passing out/main/index.js directly bypasses package.json and breaks __static path resolution.
   const userDataDir = trackTempDir(getTempPath())
-  const args = externalExecutable
-    ? ['--user-data-dir', userDataDir].concat(userArgs)
-    : [projectRoot, '--user-data-dir', userDataDir].concat(userArgs)
+  // Pin the UI language. Since first-start detection follows the system locale
+  // (#5131), a fresh `--user-data-dir` would otherwise boot this suite in
+  // whatever language the machine runs — every assertion on menu labels,
+  // placeholders or the title-bar counter would depend on the host. `--lang` is
+  // Chromium's own override for `app.getLocale()`, which is what the detector
+  // reads, so no product code needs a test-only branch.
+  const args = (externalExecutable
+    ? ['--user-data-dir', userDataDir]
+    : [projectRoot, '--user-data-dir', userDataDir]
+  ).concat(['--lang=en'], userArgs)
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v
   env.PERF_TESTING = 'true'
@@ -563,3 +570,50 @@ export const caretPaintMetrics = async(
       anchorOffset: selection.anchorOffset
     }
   })
+
+/**
+ * Whether Chromium actually paints a caret inside `selector`, read from pixels.
+ *
+ * `caretPaintMetrics` cannot answer this for a caret sitting behind a trailing
+ * newline — a collapsed range at the end of a text node that ends in `\n` has no
+ * client rects even when the insertion point is plainly visible, which is why a
+ * code block's last empty line needs a different probe. Paint the caret red and
+ * look for it in a screenshot instead. This is the same evidence the engine's own
+ * e2e uses (packages/muya/e2e/tests/blocks/codeblock-trailing-newline-5114.spec.ts).
+ *
+ * Only `caret-color` is overridden, not the glyph colour, so the rest of the
+ * document stays readable for whatever the caller asserts next. Callers should
+ * use it on a block with no syntax highlighting: a red token would be
+ * indistinguishable from the caret.
+ */
+export const caretPaintedInScreenshot = async(page: Page, selector: string): Promise<boolean> => {
+  await page.addStyleTag({
+    content: `${selector}, ${selector} * {
+      caret-color: rgb(255, 0, 0) !important;
+      caret-animation: manual !important;
+    }`
+  })
+  const clip = await page.locator(selector).first().boundingBox()
+  if (!clip) { return false }
+  const png = await page.screenshot({ clip, caret: 'initial' })
+
+  return page.evaluate(async(base64) => {
+    const image = new Image()
+    image.src = `data:image/png;base64,${base64}`
+    await image.decode()
+    const canvas = document.createElement('canvas')
+    canvas.width = image.width
+    canvas.height = image.height
+    const context = canvas.getContext('2d')
+    if (!context) { return false }
+    context.drawImage(image, 0, 0)
+    const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height)
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4
+        if (data[i] > 200 && data[i + 1] < 60 && data[i + 2] < 60) { return true }
+      }
+    }
+    return false
+  }, png.toString('base64'))
+}

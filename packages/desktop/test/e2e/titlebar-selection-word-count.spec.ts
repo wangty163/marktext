@@ -9,6 +9,7 @@ import {
   placeCaretInEditor,
   sendIpcToRenderer
 } from './helpers'
+import { dragViaMain } from './mainProcessInput'
 
 const DOC = 'Alpha beta gamma\n\nDelta epsilon\n'
 const TABLE_DOC = ['| a1 | b1 |', '| --- | --- |', '| a2 | b2 |', ''].join('\n')
@@ -24,30 +25,57 @@ const clearSourceSelection = async(page: Page): Promise<void> => {
 
 // The engine reports a selection when the drag is released, so every assertion
 // below waits for the released state rather than an intermediate one.
-const dragAcrossParagraphs = async(page: Page, from: number, to: number): Promise<void> => {
-  const paragraphs = page.locator('p.mu-paragraph')
-  const start = await paragraphs.nth(from).boundingBox()
-  const end = await paragraphs.nth(to).boundingBox()
-  if (!start || !end) throw new Error('paragraphs not found')
+//
+// Drags go through the main process: the suite launches the window unobtrusively
+// (off-display, never focused), and Playwright's own `page.mouse` needs the
+// window to be the OS key window before a press lands. See test/e2e/README.md.
+// `from`/`to` are visual LINE indices, not paragraph indices: this fork keeps
+// `Alpha beta gamma\n\nDelta epsilon` in a single paragraph block (a blank line
+// is content, not a block separator), so there is one `p.mu-paragraph` to drag
+// in and the lines inside it are what the counts below refer to.
+const dragAcrossLines = async(
+  app: ElectronApplication,
+  page: Page,
+  from: number,
+  to: number
+): Promise<void> => {
+  const box = await page.locator('p.mu-paragraph').first().boundingBox()
+  if (!box) throw new Error('paragraph not found')
+  const lineHeight = await page.evaluate(() =>
+    Number.parseFloat(
+      window.getComputedStyle(document.querySelector('.mu-paragraph-content') as HTMLElement).lineHeight
+    )
+  )
+  if (!Number.isFinite(lineHeight) || lineHeight <= 0) throw new Error('no line height')
+  const lineY = (line: number): number => box.y + lineHeight * line + lineHeight / 2
 
-  await page.mouse.move(start.x + 1, start.y + start.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(end.x + end.width - 1, end.y + end.height / 2, { steps: 8 })
-  await page.mouse.up()
+  await dragViaMain(
+    app,
+    page,
+    { x: box.x + 1, y: lineY(from) },
+    { x: box.x + box.width - 1, y: lineY(to) }
+  )
 }
 
-const dragSelectTableCells = async(page: Page): Promise<void> => {
+const dragSelectTableCells = async(app: ElectronApplication, page: Page): Promise<void> => {
   const cells = page.locator('td.mu-table-cell')
   const first = await cells.nth(0).boundingBox()
   const second = await cells.nth(1).boundingBox()
   if (!first || !second) throw new Error('table cells not found')
 
-  await page.mouse.move(first.x + first.width / 2, first.y + first.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(second.x + second.width / 2, second.y + second.height / 2, { steps: 8 })
-  await page.mouse.up()
+  await dragViaMain(
+    app,
+    page,
+    { x: first.x + first.width / 2, y: first.y + first.height / 2 },
+    { x: second.x + second.width / 2, y: second.y + second.height / 2 }
+  )
 }
 
+// The badge carries the localized category name rather than upstream's
+// one-letter code (`Words 5 / 3`, not `W 5 / 3`): the title bar has room for it
+// and a translated label reads the same in every UI language. The helpers pin
+// `--lang=en`, so the English labels below are deterministic. Everything this
+// file is about — document count first, selected count second — is unchanged.
 test.describe('Title bar selection word count', () => {
   let app: ElectronApplication
   let page: Page
@@ -65,10 +93,10 @@ test.describe('Title bar selection word count', () => {
 
   test('shows document count first and selected count second', async() => {
     const counter = page.locator('.word-count')
-    await expect(counter).toHaveText('W 5')
+    await expect(counter).toHaveText('Words 5')
 
-    await dragAcrossParagraphs(page, 0, 0)
-    await expect(counter).toHaveText('W 5 / 3')
+    await dragAcrossLines(app, page, 0, 0)
+    await expect(counter).toHaveText('Words 5 / 3')
 
     await counter.hover()
     const tooltip = page.locator('.word-count-tooltip').filter({ hasText: '5 / 3' }).last()
@@ -77,15 +105,18 @@ test.describe('Title bar selection word count', () => {
     await expect(tooltip.locator('.title-item .text').nth(3)).toHaveText('32 / 16')
 
     await placeCaretInEditor(page)
-    await expect(counter).toHaveText('W 5')
+    await expect(counter).toHaveText('Words 5')
     await expectNoRendererErrors(app)
   })
 
   test('counts a selection spanning several paragraphs', async() => {
     const counter = page.locator('.word-count')
 
-    await dragAcrossParagraphs(page, 0, 1)
-    await expect(counter).toHaveText('W 5 / 5')
+    // To line 2, not 1: the document's blank line is content here, so it is a
+    // line of its own and `Delta epsilon` sits below it. Dragging to the last
+    // line spans the whole document, which is what this case is about.
+    await dragAcrossLines(app, page, 0, 2)
+    await expect(counter).toHaveText('Words 5 / 5')
 
     await counter.hover()
     const tooltip = page.locator('.word-count-tooltip').filter({ hasText: '5 / 5' }).last()
@@ -100,60 +131,60 @@ test.describe('Title bar selection word count', () => {
     await placeCaretInEditor(page)
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home')
     for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowDown')
-    await expect(counter).toHaveText('W 5 / 5')
+    await expect(counter).toHaveText('Words 5 / 5')
 
     await page.keyboard.press('ArrowRight')
-    await expect(counter).toHaveText('W 5')
+    await expect(counter).toHaveText('Words 5')
     await expectNoRendererErrors(app)
   })
 
   test('restores the count with the saved selection when returning to a tab', async() => {
     const counter = page.locator('.word-count')
 
-    await dragAcrossParagraphs(page, 0, 0)
-    await expect(counter).toHaveText('W 5 / 3')
+    await dragAcrossLines(app, page, 0, 0)
+    await expect(counter).toHaveText('Words 5 / 3')
 
     await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'Alpha beta gamma\n')
-    await expect(counter).toHaveText('W 3')
+    await expect(counter).toHaveText('Words 3')
 
     await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 0)
     await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(
       'Alpha beta gamma'
     )
-    await expect(counter).toHaveText('W 5 / 3')
+    await expect(counter).toHaveText('Words 5 / 3')
 
     await placeCaretInEditor(page)
-    await expect(counter).toHaveText('W 5')
+    await expect(counter).toHaveText('Words 5')
     await expectNoRendererErrors(app)
   })
 
   test('shows and clears selected count in source-code mode', async() => {
     const counter = page.locator('.word-count')
-    await expect(counter).toHaveText('W 5')
+    await expect(counter).toHaveText('Words 5')
 
     await enterSourceMode(page, app)
-    await expect(counter).toHaveText('W 5')
+    await expect(counter).toHaveText('Words 5')
 
     await selectAllSourceText(page)
-    await expect(counter).toHaveText('W 5 / 5')
+    await expect(counter).toHaveText('Words 5 / 5')
 
     await clearSourceSelection(page)
-    await expect(counter).toHaveText('W 5')
+    await expect(counter).toHaveText('Words 5')
     await expectNoRendererErrors(app)
   })
 
   test('preserves selected count after leaving source-code mode', async() => {
     const counter = page.locator('.word-count')
-    await expect(counter).toHaveText('W 5')
+    await expect(counter).toHaveText('Words 5')
 
     await enterSourceMode(page, app)
     await selectAllSourceText(page)
-    await expect(counter).toHaveText('W 5 / 5')
+    await expect(counter).toHaveText('Words 5 / 5')
 
     await exitSourceMode(page, app)
-    await expect(counter).toHaveText('W 5 / 5')
+    await expect(counter).toHaveText('Words 5 / 5')
     await placeCaretInEditor(page)
-    await expect(counter).toHaveText('W 5')
+    await expect(counter).toHaveText('Words 5')
     await expectNoRendererErrors(app)
   })
 
@@ -162,13 +193,13 @@ test.describe('Title bar selection word count', () => {
 
     await enterSourceMode(page, app)
     await selectAllSourceText(page)
-    await expect(counter).toHaveText('W 5 / 5')
+    await expect(counter).toHaveText('Words 5 / 5')
 
     await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'Alpha beta gamma\n')
-    await expect(counter).toHaveText('W 3')
+    await expect(counter).toHaveText('Words 3')
 
     await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 0)
-    await expect(counter).toHaveText('W 5 / 5')
+    await expect(counter).toHaveText('Words 5 / 5')
     await expectNoRendererErrors(app)
   })
 })
@@ -181,10 +212,10 @@ test('shows no selected count for a rectangular table selection', async() => {
   try {
     await clearRendererErrors(app)
     const counter = page.locator('.word-count')
-    await expect(counter).toHaveText(/^W \d+$/)
+    await expect(counter).toHaveText(/^Words \d+$/)
 
-    await dragSelectTableCells(page)
-    await expect(counter).toHaveText(/^W \d+$/)
+    await dragSelectTableCells(app, page)
+    await expect(counter).toHaveText(/^Words \d+$/)
     await expectNoRendererErrors(app)
   } finally {
     await app.close()

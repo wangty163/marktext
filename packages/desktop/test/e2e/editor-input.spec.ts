@@ -163,7 +163,7 @@ test.describe('Title-bar word counter (item 24)', () => {
 
     // character -> all (raw markdown length, with spaces).
     await counter.click()
-    await expect.poll(() => counterText(page)).toMatch(/^字符数（含空格）\s/)
+    await expect.poll(() => counterText(page)).toMatch(/^总字符数\s/)
     await expect.poll(() => counterValue(page)).toBe(expected.all)
 
     // all -> wraps back to word.

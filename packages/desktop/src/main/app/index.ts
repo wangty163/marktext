@@ -36,6 +36,19 @@ interface PathInfo {
   path: string
 }
 
+/**
+ * Whether a positional argument is the application directory itself.
+ *
+ * Running from source (`electron <app-dir> …`, as the E2E launcher and `pnpm dev`
+ * do) leaves the app path in `process.argv`, and a second instance forwards its
+ * own argv unchanged (#3020), so it reaches both the startup parse and the
+ * `second-instance` handler. `normalizeMarkdownPath` accepts directories, so
+ * without this the app directory would be opened as a folder: at startup it
+ * replaces the configured startup action, and from a second instance it spawns
+ * another window for the forwarded copy instead of tabbing the file in.
+ */
+const isAppPathArgument = (pathname: string): boolean => pathname === app.getAppPath()
+
 class App {
   private _accessor: Accessor
   private _args: CliArgs
@@ -85,6 +98,11 @@ class App {
       for (const pathname of args._) {
         // Ignore all unknown flags
         if (pathname.startsWith('--')) {
+          continue
+        }
+
+        // The forwarded argv still carries the second instance's app directory.
+        if (isAppPathArgument(pathname)) {
           continue
         }
 
@@ -208,15 +226,14 @@ class App {
       // Running from source (`electron <app-dir> …`, as the E2E launcher does)
       // leaves the application directory itself in the positional arguments.
       // Treating it as a path to open would replace the configured startup
-      // action with that folder, so skip anything that is the app path.
-      const appPath = app.getAppPath()
+      // action with that folder, so skip it.
       for (const pathname of args._) {
         // Ignore all unknown flags
         if (pathname.startsWith('--')) {
           continue
         }
 
-        if (pathname === appPath) {
+        if (isAppPathArgument(pathname)) {
           continue
         }
 

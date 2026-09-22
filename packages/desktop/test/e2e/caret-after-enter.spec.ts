@@ -2,8 +2,9 @@ import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
 import fs from 'node:fs'
 import {
-  caretPaintMetrics, closeTestApplication, endOfBlockPoint, launchWithMarkdown,
-  paragraphText, saveWithKeyboard, terminateTestApplication, waitForMenuReady, ZERO_WIDTH_SPACE
+  caretPaintedInScreenshot, caretPaintMetrics, closeTestApplication, endOfBlockPoint,
+  launchWithMarkdown, paragraphText, saveWithKeyboard, terminateTestApplication,
+  waitForMenuReady, ZERO_WIDTH_SPACE
 } from './helpers'
 import { clickPointViaMain } from './mainProcessInput'
 
@@ -14,12 +15,19 @@ import { clickPointViaMain } from './mainProcessInput'
 //     paragraph creates a NEW empty block, and an empty content block rendered
 //     to an empty string. A collapsed range inside an empty inline element has
 //     no client rect, so the browser had nowhere to paint an insertion point.
-//   - Enter on the last line of a code block appends a trailing newline, which
-//     renders as a `mu-line-end` span with nothing after it.
+//   - Enter on the last line of a code block appends a trailing newline, and a
+//     newline with nothing after it lays out no line for the caret to sit in.
 //
-// Both now park a zero-width `mu-caret-anchor`. These cases drive the real
+// Empty blocks and trailing line breaks in text now park a zero-width
+// `mu-caret-anchor`; a code block instead ends in a `mu-trailing-break` <br>,
+// which gives the empty last line a box of its own. These cases drive the real
 // Electron shell with real clicks, assert the caret's layout evidence, type
-// through it, and check that the anchor character never reaches the saved file.
+// through it, and check that no placeholder character reaches the saved file.
+//
+// The two code-block cases measure that evidence in screenshot pixels rather
+// than in range rects: a collapsed range behind a trailing newline has no client
+// rects even when the caret is visible, so `caretPaintMetrics` would report a
+// miss. See `caretPaintedInScreenshot` in helpers.ts.
 
 interface Case {
   name: string
@@ -32,6 +40,11 @@ interface Case {
   expectBlocks: string[]
   /** File content expected after saving. */
   expectFile: string
+  /**
+   * Measure the caret in screenshot pixels instead of range rects, for a block
+   * whose caret ends up behind a trailing newline.
+   */
+  caretByScreenshot?: boolean
 }
 
 const CASES: Case[] = [
@@ -73,7 +86,8 @@ const CASES: Case[] = [
     markdown: '```\ncode line\n```\n',
     selector: '.mu-codeblock-content',
     expectBlocks: ['code line\nX'],
-    expectFile: '```\ncode line\nX\n```\n'
+    expectFile: '```\ncode line\nX\n```\n',
+    caretByScreenshot: true
   },
   {
     name: 'indented code block',
@@ -82,7 +96,8 @@ const CASES: Case[] = [
     selector: '.mu-codeblock-content',
     expectBlocks: ['indented code\nX'],
     // An indented block stays indented on save; it is not converted to a fence.
-    expectFile: '    indented code\n    X\n'
+    expectFile: '    indented code\n    X\n',
+    caretByScreenshot: true
   }
 ]
 
@@ -118,18 +133,27 @@ test.describe('Enter at the end of a block keeps a visible caret', () => {
     await page.keyboard.press('Enter')
     await page.waitForTimeout(450)
 
-    // The caret must be paintable: a collapsed range with a real box.
-    const metrics = await caretPaintMetrics(page)
-    expect(metrics.rects, `${testCase.name}: ${JSON.stringify(metrics)}`).toBeGreaterThan(0)
-    expect(metrics.height, `${testCase.name}: ${JSON.stringify(metrics)}`).toBeGreaterThan(0)
+    if (testCase.caretByScreenshot) {
+      // A code block's caret sits behind its trailing newline, where a collapsed
+      // range has no client rect to measure; read the painted pixels instead.
+      expect(
+        await caretPaintedInScreenshot(page, testCase.selector),
+        `${testCase.name}: no caret painted on the empty last line`
+      ).toBe(true)
+    } else {
+      // The caret must be paintable: a collapsed range with a real box.
+      const metrics = await caretPaintMetrics(page)
+      expect(metrics.rects, `${testCase.name}: ${JSON.stringify(metrics)}`).toBeGreaterThan(0)
+      expect(metrics.height, `${testCase.name}: ${JSON.stringify(metrics)}`).toBeGreaterThan(0)
 
-    const viewport = await page.evaluate(() => {
-      const rect = document.getSelection()!.getRangeAt(0).getBoundingClientRect()
-      const editor = document.querySelector('.editor-component')!.getBoundingClientRect()
-      return { top: rect.top, bottom: rect.bottom, editorTop: editor.top, editorBottom: editor.bottom }
-    })
-    expect(viewport.top).toBeGreaterThanOrEqual(viewport.editorTop)
-    expect(viewport.bottom).toBeLessThanOrEqual(viewport.editorBottom)
+      const viewport = await page.evaluate(() => {
+        const rect = document.getSelection()!.getRangeAt(0).getBoundingClientRect()
+        const editor = document.querySelector('.editor-component')!.getBoundingClientRect()
+        return { top: rect.top, bottom: rect.bottom, editorTop: editor.top, editorBottom: editor.bottom }
+      })
+      expect(viewport.top).toBeGreaterThanOrEqual(viewport.editorTop)
+      expect(viewport.bottom).toBeLessThanOrEqual(viewport.editorBottom)
+    }
     await page.addStyleTag({ content: '* { caret-animation: manual !important; }' })
     await test.info().attach('caret-after-enter', {
       body: await page.screenshot({ caret: 'initial' }), contentType: 'image/png'
