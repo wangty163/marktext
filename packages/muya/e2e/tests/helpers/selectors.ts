@@ -24,6 +24,10 @@ export const editor = {
     softLineBreak: '.mu-soft-line-break',
     blockQuote: '.mu-block-quote',
     bulletList: '.mu-bullet-list',
+    // One bullet/ordered list item, and the editable paragraph inside it. The
+    // descendant form keeps working however deeply the item nests its content.
+    listItem: '.mu-list-item',
+    listItemContent: '.mu-list-item .mu-paragraph-content',
     orderList: '.mu-order-list',
     taskList: '.mu-task-list',
     taskListItem: '.mu-task-list-item',

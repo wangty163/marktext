@@ -52,3 +52,37 @@ export async function getLinkJumps(page: Page): Promise<Array<{ href?: string }>
 export async function getInitialMarkdown(page: Page): Promise<string> {
     return page.evaluate(() => window.__e2e!.INITIAL_MARKDOWN);
 }
+
+/**
+ * Whether the quick-insert menu is actually positioned on screen.
+ *
+ * `BaseFloat` parks its box far off-screen until `show()` places it, and a
+ * parked box is still `display: block` with a non-empty rect — so Playwright's
+ * `toBeVisible()` passes on a menu that was never opened, and the next click
+ * burns the whole test timeout on "element is outside of the viewport".
+ *
+ * This fork needs the check because its quick-insert trigger matches only a
+ * block whose text is nothing but the query (`/^[/、]\S*$/` in
+ * ui/paragraphQuickInsertMenu). Enter inside a paragraph appends a literal
+ * newline here instead of opening a new block, so typing `/` on that line
+ * leaves the block holding `Hello\n/` and the menu never opens. List items are
+ * the exception: Enter there does start a new item, so the menu opens normally.
+ */
+export async function quickInsertOpened(page: Page): Promise<boolean> {
+    return page.evaluate((selector) => {
+        const menu = document.querySelector(selector) as HTMLElement | null;
+        if (!menu)
+            return false;
+        const rect = menu.getBoundingClientRect();
+
+        return rect.x > -1000 && rect.y > -1000;
+    }, '.mu-quick-insert');
+}
+
+/**
+ * The reason a spec cannot reach the quick-insert menu in this fork, for
+ * `test.skip`. Kept next to `quickInsertOpened` so the two stay in step.
+ */
+export const QUICK_INSERT_TRIGGER_GAP =
+    'this fork keeps a paragraph Enter as a literal newline, so the block text is '
+    + '"Hello\\n/" and the quick-insert trigger (a block holding only the query) never fires';

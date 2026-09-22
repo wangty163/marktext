@@ -37,6 +37,13 @@ function cellTexts(page: Page): Promise<string[]> {
     return page.evaluate(() => [...document.querySelectorAll('.mu-table-cell-content')].map(cell => (cell as HTMLElement).textContent ?? ''));
 }
 
+// An emptied cell renders the zero-width caret anchor so the browser has a
+// paintable insertion point in it, and `cellTexts` reads the DOM rather than the
+// model. The engine's own text stays empty — OFFSET_BLACKLIST keeps the anchor
+// out of every offset — so the assertions below expect the anchor character
+// where a cut left a cell with nothing in it.
+const EMPTY_CELL = '\u200b';
+
 test.describe('cut ending in a table', () => {
     test('keeps the blocks after the list the table is nested in (#5400, #5398)', async ({ page }) => {
         const errors = collectPageErrors(page);
@@ -48,7 +55,7 @@ test.describe('cut ending in a table', () => {
         await expect.poll(() => getMarkdown(page)).toContain('after');
         expect(await getMarkdown(page)).toContain('more');
         // The header cell is emptied on screen, and the unselected `1` stays.
-        await expect.poll(() => cellTexts(page)).toEqual(['', '1']);
+        await expect.poll(() => cellTexts(page)).toEqual([EMPTY_CELL, '1']);
         expect(errors).toEqual([]);
     });
 
@@ -72,7 +79,7 @@ test.describe('cut ending in a table', () => {
         await page.keyboard.press('Backspace');
 
         await expect.poll(() => getMarkdown(page)).not.toContain('- b');
-        await expect.poll(() => cellTexts(page)).toEqual(['', '2', '34']);
+        await expect.poll(() => cellTexts(page)).toEqual([EMPTY_CELL, '2', '34']);
         expect(errors).toEqual([]);
     });
 });

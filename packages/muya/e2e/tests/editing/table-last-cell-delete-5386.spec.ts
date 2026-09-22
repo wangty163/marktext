@@ -42,7 +42,10 @@ test.describe('forward Delete at the end of a table\'s last cell (#5386)', () =>
         await page.keyboard.press('Delete');
         await page.keyboard.type('z');
 
-        await expect.poll(() => getMarkdown(page)).toBe('- a\n\n  | x   | y   |\n  | --- | --- |\n  | 1   | 2zb |\n\n  - c\n');
+        // No blank line before the moved sublist: every list here is tight and
+        // the gaps that do exist are editable empty paragraphs of their own, so
+        // the serializer adds no loose-list separator.
+        await expect.poll(() => getMarkdown(page)).toBe('- a\n\n  | x   | y   |\n  | --- | --- |\n  | 1   | 2zb |\n  - c\n');
         expect(errors).toEqual([]);
     });
 });

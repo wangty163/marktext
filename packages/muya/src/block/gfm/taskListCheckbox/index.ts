@@ -175,10 +175,16 @@ class TaskListCheckbox extends TreeNode {
                 this.update(checked, 'user');
             }
 
-            // The control is not editable, so clicking it does not move the
-            // text selection. Seat the caret in this item before the desktop's
-            // selection-follow scroll can reveal a stale off-screen cursor.
-            (this.parent as TaskListItem).firstContentInDescendant()?.setCursor(0, 0, true);
+            // Deliberately no `setCursor` here. Upstream seats the caret in this
+            // item on click (#5189) so the desktop's selection-follow scroll has a
+            // sensible target; this fork removes the emission instead —
+            // `isFromNonEditableWidget` drops the widget's `input` event in
+            // `Editor._dispatchEvents`, so toggling a box replays no edit and
+            // emits no `selection-change` at all. Same symptom fixed, and the
+            // caret stays where the user left it rather than jumping into the
+            // item they clicked. Guarded by e2e/tests/blocks/
+            // task-checkbox-widget-input.spec.ts and the desktop's
+            // test/e2e/task-list-checkbox-scroll.spec.ts.
         };
 
         const eventIds = [

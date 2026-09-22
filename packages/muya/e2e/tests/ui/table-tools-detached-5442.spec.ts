@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from '../fixtures/muya';
-import { getMarkdown } from '../helpers/api';
+import { getMarkdown, QUICK_INSERT_TRIGGER_GAP, quickInsertOpened } from '../helpers/api';
 import { editor, floats, quickInsertItem, tablePickerCell } from '../helpers/selectors';
 
 // #5442: both table floats remember the cell they were opened on. An Undo that
@@ -15,11 +15,17 @@ function collectErrors(page: Page): string[] {
 }
 
 async function insertTableViaPicker(page: Page): Promise<void> {
-    await page.evaluate(() => window.muya!.setContent('Hello\n'));
-    await page.locator(editor.paragraph).first().click();
+    // A list item, not a paragraph: Enter inside a paragraph appends a literal
+    // newline in this fork, so the block would hold `Hello\n/` and the
+    // quick-insert trigger would never fire. Enter on a list item does start a
+    // new item — an undoable line for the table to be inserted into and for Undo
+    // to take away again, which is the situation #5442 is about.
+    await page.evaluate(() => window.muya!.setContent('- Hello\n'));
+    await page.locator(editor.listItemContent).first().click();
     await page.keyboard.press('End');
     await page.keyboard.press('Enter');
     await page.keyboard.type('/');
+    test.skip(!(await quickInsertOpened(page)), QUICK_INSERT_TRIGGER_GAP);
     await page.locator(quickInsertItem('table')).click();
     await expect(page.locator(floats.tablePicker)).toBeVisible();
     const cell = page.locator(tablePickerCell(1, 1));
@@ -79,7 +85,9 @@ test.describe('table tools whose table left the document (#5442)', () => {
         await openRowMenu(page);
 
         await page.evaluate(() => window.muya!.undo());
-        await expect.poll(() => getMarkdown(page)).toBe('Hello\n');
+        // `- Hello`: the grid is opened from a new list item, see
+        // insertTableViaPicker for why a paragraph cannot be used here.
+        await expect.poll(() => getMarkdown(page)).toBe('- Hello\n');
 
         const selector = `${floats.tableRowColumMenu} li.item`;
         const count = await page.locator(selector).count();
@@ -88,7 +96,7 @@ test.describe('table tools whose table left the document (#5442)', () => {
             await clickFloatItem(page, selector, i);
 
         expect(errors, `renderer pageerrors: ${errors.join(' | ')}`).toEqual([]);
-        expect(await getMarkdown(page)).toBe('Hello\n');
+        expect(await getMarkdown(page)).toBe('- Hello\n');
     });
 
     test('every column toolbar item is inert once Undo removed the table', async ({ page }) => {
@@ -97,7 +105,9 @@ test.describe('table tools whose table left the document (#5442)', () => {
         await openColumnToolbar(page);
 
         await page.evaluate(() => window.muya!.undo());
-        await expect.poll(() => getMarkdown(page)).toBe('Hello\n');
+        // `- Hello`: the grid is opened from a new list item, see
+        // insertTableViaPicker for why a paragraph cannot be used here.
+        await expect.poll(() => getMarkdown(page)).toBe('- Hello\n');
 
         const selector = `${floats.tableColumnTools} li.item`;
         const count = await page.locator(selector).count();
@@ -106,7 +116,7 @@ test.describe('table tools whose table left the document (#5442)', () => {
             await clickFloatItem(page, selector, i);
 
         expect(errors, `renderer pageerrors: ${errors.join(' | ')}`).toEqual([]);
-        expect(await getMarkdown(page)).toBe('Hello\n');
+        expect(await getMarkdown(page)).toBe('- Hello\n');
     });
 
     test('the row menu still edits a table that is in the document', async ({ page }) => {

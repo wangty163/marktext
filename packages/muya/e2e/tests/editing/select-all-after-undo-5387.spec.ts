@@ -32,6 +32,13 @@ for (const markdown of ['a\n', 'a\n\nc\n']) {
         const errors = collectPageErrors(page);
         await undoNewParagraphAfterFirstLine(page, markdown);
 
+        // Twice: Select All escalates — the first press grows the caret to its
+        // whole block, the second takes the document. With `a\n\nc\n` the caret
+        // block is still in the document here (Enter appends a literal newline in
+        // this fork instead of opening a block for undo to remove), so the first
+        // press selects `a` alone. #5387's guarantee is unchanged: no throw, and
+        // the selection replaces the document.
+        await page.evaluate(() => window.muya!.selectAll());
         await page.evaluate(() => window.muya!.selectAll());
         await page.keyboard.type('X');
 

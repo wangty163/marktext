@@ -90,13 +90,17 @@ test.describe('cross-block cut into a nested code, math or html block (#4903, #5
         await loadAndSelectIntoNestedBlock(page, 'intro\n\n- item\n\n  ```js\n  code\n  ```\n\n  tail\n', 2);
 
         await page.keyboard.press('Backspace');
-        await expect.poll(() => getMarkdown(page)).toBe('inde\n\n- tail\n');
+        // The item's gap stays an editable empty paragraph, so `tail` remains on
+        // its own line inside the item instead of collapsing onto the bullet.
+        await expect.poll(() => getMarkdown(page)).toBe('inde\n\n- \n\n  tail\n');
         await expectTreeMatchesJson(page);
 
         await placeCaretAtEnd(page, 'tail');
         await page.keyboard.press('Enter');
         await page.keyboard.type('next');
-        await expect.poll(() => getMarkdown(page)).toBe('inde\n\n- tail\n\n- next\n');
+        // `next` becomes a second paragraph of the same item, not a new item:
+        // Enter inside a list item splits the paragraph in place.
+        await expect.poll(() => getMarkdown(page)).toBe('inde\n\n- \n\n  tail\n\n  next\n');
         await expectTreeMatchesJson(page);
         expect(errors).toEqual([]);
     });

@@ -83,6 +83,16 @@ test('Backspace at the start of a setext heading below a bullet list, then Enter
 
     expect(errors).toEqual([]);
     expect(await detachedBlocks(page)).toEqual([]);
-    await expect.poll(() => getMarkdown(page)).toBe('- one\n- two\n\n\n\nHeading\n');
+    // Enter twice exits the list into an editable empty paragraph. That paragraph
+    // contributes exactly one blank line, which is the separator it shares with
+    // the list, so the markdown reads the same as before the two Enters while the
+    // state now carries the gap the user created — assert both.
+    await expect.poll(() => getMarkdown(page)).toBe('- one\n- two\n\nHeading\n');
+    expect(await page.evaluate(() => (window.muya!.getState() as Array<{ name: string; text?: string }>)
+        .map(block => [block.name, block.text ?? null]))).toEqual([
+        ['bullet-list', null],
+        ['paragraph', ''],
+        ['paragraph', 'Heading'],
+    ]);
     await expectTreeMatchesJson(page);
 });
