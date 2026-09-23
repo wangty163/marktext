@@ -273,6 +273,32 @@ class ParagraphContent extends Format {
         }
     }
 
+    override deleteHandler(event: KeyboardEvent): void {
+        const cursor = this.getCursor();
+        const next = this.parent?.next;
+        // An editable source gap before a structural sibling is removable;
+        // Format's generic handler intentionally refuses to merge code/tables
+        // into prose. Remove only the empty paragraph, never its container.
+        if (
+            this.muya.options.preserveParagraphLineBreaks
+            && this.text === ''
+            && cursor?.start.offset === 0
+            && cursor.end.offset === 0
+            && next
+            && next.blockName !== 'paragraph'
+        ) {
+            const target = next.firstContentInDescendant();
+            if (target) {
+                event.preventDefault();
+                this.muya.editor.history.markInputBoundary('deleteContentForward', null);
+                this.parent!.remove();
+                target.setCursor(0, 0, true);
+                return;
+            }
+        }
+        super.deleteHandler(event);
+    }
+
     override inputHandler(event: Event) {
         super.inputHandler(event);
         const { eventCenter } = this.muya;

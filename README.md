@@ -142,6 +142,15 @@ ordinary text stay literal, equally spaced lines when saving, reopening or pasti
 **Shift+Enter** inserts the same newline within the current paragraph. Lists, headings, block
 quotes, and block-conversion shortcuts retain their structural Enter behavior.
 
+Source blank lines around headings and fenced code blocks are editable rows, not
+implicit formatting. Deleting such a row also removes it from the saved Markdown;
+saving, reopening, and switching source mode do not add it back. Syntax-required
+separators (for example, between a list and following prose) remain protected so
+reopening does not change the document's structure. This is not byte-for-byte
+source editing: Markdown markers and table alignment may still be normalized,
+and the code-block empty-line preference still applies. Use Source Code mode
+when exact source formatting is required.
+
 ### Opening documents
 
 Launching MarkText without a file opens a blank document titled **MarkText** by default.

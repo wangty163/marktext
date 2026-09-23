@@ -51,7 +51,10 @@ interface IOptions {
 const inlineStartRule = /\${1,2}(?!\$)/g;
 const inlineRule
     = /^(?!\$(?!\$)(?:[^$\\\n]|\\.)*(?:\s\$|\$\d))(\$\$(?!\$)|\$(?=\S))((?:(?!\1)[^\\\n]|\\.)+)\1(?!\1)/;
-const blockRule = /^(\${1,2})\n((?:\\[\s\S]|[^\\])+?)\n\1[ \t]*(?:\n|$)/;
+// Leave the closing line's newline to marked's space tokenizer, as fenced
+// code does. Consuming it would let marked append a lone blank-line newline
+// to this token's raw text, hiding that editable source gap from the importer.
+const blockRule = /^(\${1,2})\n((?:\\[\s\S]|[^\\])+?)\n\1[ \t]*(?=\n|$)/;
 
 // GitHub's inline math, pandoc's `tex_math_gfm` — mirrors the editor's
 // `inline_math_gfm` rule.

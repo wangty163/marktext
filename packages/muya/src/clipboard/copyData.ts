@@ -363,7 +363,10 @@ export function getSelectionClipboardData(
 
     const copyState = collectCopyState(order);
 
-    const text = new StateToMarkdown().generate(copyState);
+    const text = new StateToMarkdown({
+        listIndentation: clipboard.muya.options.listIndentation,
+        preserveParagraphLineBreaks: clipboard.muya.options.preserveParagraphLineBreaks,
+    }).generate(copyState);
     const html = getClipBoardHtml(text, options);
 
     return { html, text };

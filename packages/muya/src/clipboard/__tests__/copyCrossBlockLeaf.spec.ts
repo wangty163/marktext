@@ -54,6 +54,18 @@ function stub(muya: Muya, ab: Content, ao: number, fb: Content, fo: number) {
 }
 
 describe('cross-block copy with an atx-heading endpoint', () => {
+    it.each([0, 1, 2])('preserves exactly %i source gaps before a code block', (count) => {
+        const markdown = `# Heading\n${'\n'.repeat(count)}\`\`\`js\ncode\n\`\`\`\n`;
+        const muya = bootMuya('');
+        muya.setOptions({ preserveParagraphLineBreaks: true });
+        muya.setContent(markdown);
+        const sp = muya.editor.scrollPage!;
+        const heading = sp.firstContentInDescendant()!;
+        const code = sp.lastContentInDescendant()!;
+        stub(muya, heading, 0, code, code.text.length);
+        expect(muya.editor.clipboard.getClipboardData().text).toBe(markdown);
+    });
+
     it('keeps the whole heading (with marker) when selected from its start', () => {
         const muya = bootMuya('# Heading\n\npara\n');
         const sp = muya.editor.scrollPage!;

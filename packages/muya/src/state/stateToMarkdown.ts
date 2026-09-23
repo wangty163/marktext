@@ -43,6 +43,7 @@ function escapeText(str: string) {
 
 export interface IExportMarkdownOptions {
     listIndentation: number | string;
+    preserveParagraphLineBreaks?: boolean;
 }
 
 export default class ExportMarkdown {
@@ -60,14 +61,17 @@ export default class ExportMarkdown {
     private _isLooseParentList: boolean;
     private _listIndentation: string;
     private _listIndentationCount: number;
+    private _preserveParagraphLineBreaks: boolean;
 
     constructor(
         {
             listIndentation,
+            preserveParagraphLineBreaks = false,
         }: IExportMarkdownOptions = {
             listIndentation: 1,
         },
     ) {
+        this._preserveParagraphLineBreaks = preserveParagraphLineBreaks;
         this._listType = []; // 'ul' or 'ol'
         // helper to translate the first tight item in a nested list
         this._isLooseParentList = true;
@@ -101,6 +105,8 @@ export default class ExportMarkdown {
         let previousState: TState | undefined;
 
         for (const state of states) {
+            if (this._preserveParagraphLineBreaks && this._needsBlockSeparator(previousState, state))
+                this._insertLineBreak(result, indent, true);
             if (
                 state.name !== 'order-list'
                 && state.name !== 'bullet-list'
@@ -141,6 +147,37 @@ export default class ExportMarkdown {
         }
 
         return result.join('');
+    }
+
+    // Keep syntax-required separators for newly edited block combinations.
+    // Without these, saving could turn prose into a list/quote continuation,
+    // a table row, a setext heading, or part of an HTML/indented-code block.
+    private _needsBlockSeparator(previous: TState | undefined, state: TState): boolean {
+        if (!previous)
+            return false;
+        const isEmpty = (block: TState) => block.name === 'paragraph' && block.text === '';
+        if (isEmpty(previous) || isEmpty(state))
+            return false;
+
+        if (previous.name === 'html-block')
+            return true;
+        if (state.name === 'code-block' && state.meta.type === 'indented')
+            return ['paragraph', 'code-block'].includes(previous.name) || isAnyListState(previous);
+        if (state.name === 'paragraph')
+            return isAnyListState(previous) || ['block-quote', 'table'].includes(previous.name);
+        if (previous.name !== 'paragraph')
+            return false;
+        if (['setext-heading', 'table', 'html-block'].includes(state.name))
+            return true;
+        if (state.name === 'thematic-break')
+            return /^\s*-/.test(state.text);
+        if (state.name === 'order-list' && state.meta.start !== 1)
+            return true;
+        if (isAnyListState(state)) {
+            const first = state.children[0]?.children[0];
+            return !first || (first.name === 'paragraph' && first.text.trim() === '');
+        }
+        return false;
     }
 
     private _serializeSimpleBlock(
@@ -305,13 +342,19 @@ export default class ExportMarkdown {
         // helper variable to correct the first tight item in a nested list
         this._isLooseParentList = loose;
         if (loose)
-            this._insertLineBreak(result, indent);
+            this._insertLineBreak(result, indent, true);
 
         result.push(this._serializeListItem(state, indent + listIndent));
         this._isLooseParentList = true;
     }
 
-    private _insertLineBreak(result: unknown[], indent: string) {
+    private _insertLineBreak(result: unknown[], indent: string, required = false) {
+        // In source-preserving mode blank lines are editable paragraphs (or
+        // literal paragraph newlines). Adding implicit separators here would
+        // silently restore a gap the user just deleted. Only syntax-required
+        // separation or an explicit loose-list toggle may add blank lines.
+        if (this._preserveParagraphLineBreaks && !required)
+            return;
         if (!result.length)
             return;
         const lastChunk = String(result[result.length - 1]);
