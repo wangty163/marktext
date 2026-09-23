@@ -5,6 +5,17 @@
 uses the repository's Electron build. For installed startup behavior, use the
 installed path documented in the root `AGENTS.md`.
 
+## Code-block blank-line fixtures
+
+Desktop's default `trimUnnecessaryCodeBlockEmptyLines` is `true`
+(`src/renderer/src/store/preferences.ts`); Muya's standalone default is `false`
+(`packages/muya/src/config/index.ts`). With the desktop setting enabled, importing
+Markdown removes leading/trailing empty code lines before an editing test starts.
+For blank-line editing, create those lines with real Enter keys, then navigate to
+the target row; see `code-block-cut-empty-line.spec.ts`, verified against both the
+source build and installed app. For import tests, explicitly choose the preference
+instead. Recheck these defaults when either preference source or import behavior changes.
+
 ## Runs never take over the machine
 
 Playwright cannot start Electron headless, so a plain run puts a real window on the

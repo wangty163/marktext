@@ -4,6 +4,7 @@ set -euo pipefail
 
 usage() {
   echo "Usage: scripts/install-local-macos.sh [--dry-run] <e2e-spec> [<e2e-spec> ...]"
+  echo 'Always validates test collection first; --dry-run only prints the remaining install steps.'
 }
 
 dry_run=false
@@ -18,6 +19,8 @@ fi
 
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 desktop_dir="$repo_root/packages/desktop"
+playwright_config="$desktop_dir/playwright.config.ts"
+playwright_bin="$desktop_dir/node_modules/.bin/playwright"
 installed_app='/Applications/MarkText.app'
 lsregister='/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
 arch=${MARKTEXT_INSTALL_ARCH:-$(uname -m)}
@@ -36,6 +39,16 @@ case "$arch" in
     exit 2
     ;;
 esac
+
+# A stale config path or invalid test filter must fail before an expensive
+# build or any app replacement. --list collects tests without launching Electron.
+[[ -f "$playwright_config" ]] || { echo "Playwright config not found: $playwright_config" >&2; exit 2; }
+[[ -x "$playwright_bin" ]] || { echo "Playwright executable not found: $playwright_bin" >&2; exit 2; }
+(
+  cd "$desktop_dir"
+  env MARKTEXT_E2E_EXECUTABLE="$installed_app/Contents/MacOS/marktext" \
+    "$playwright_bin" test --config="$playwright_config" --list "$@"
+)
 
 packaged_app="$repo_root/dist/$package_dir/marktext.app"
 if $dry_run; then
@@ -116,8 +129,7 @@ if ! $dry_run; then
 fi
 
 run env MARKTEXT_E2E_EXECUTABLE="$installed_app/Contents/MacOS/marktext" \
-  "$desktop_dir/node_modules/.bin/playwright" test \
-  --config="$desktop_dir/playwright.config.ts" "$@"
+  "$playwright_bin" test --config="$playwright_config" "$@"
 
 install_started=false
 if $dry_run; then
