@@ -6,6 +6,8 @@ usage() {
   echo "Usage: scripts/install-local-macos.sh [--dry-run] <e2e-spec> [<e2e-spec> ...]"
   echo 'Validates test collection and requires the installed app to be closed; never quits it for you.'
   echo '--dry-run performs those checks and only prints the remaining install steps.'
+  echo '-h, --help prints this help without running any checks.'
+  echo 'Only spec filters are forwarded to Playwright; other options are rejected.'
 }
 
 dry_run=false
@@ -13,6 +15,19 @@ if [[ ${1:-} == '--dry-run' ]]; then
   dry_run=true
   shift
 fi
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $arg" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
 if [[ $# -eq 0 ]]; then
   usage >&2
   exit 2

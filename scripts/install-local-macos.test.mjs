@@ -46,24 +46,26 @@ fi
 exit "$COLLECTION_EXIT"
 `, { mode: 0o755 })
   }
+  const runArgs = (...args) => execFileAsync('bash', [script, ...args], {
+    cwd: root,
+    env: {
+      ...process.env,
+      PATH: `${mockBin}${path.delimiter}${process.env.PATH}`,
+      PROCESS_LOG: processLog,
+      PROCESSES: processes,
+      PROCESS_EXIT: String(processExit),
+      REOPENED: String(reopened),
+      MARKTEXT_INSTALL_ARCH: 'arm64',
+      PREFLIGHT_LOG: log,
+      COLLECTION_EXIT: String(collectionExit)
+    }
+  })
   return {
     desktop,
     log,
     processLog,
-    run: (...specs) => execFileAsync('bash', [script, '--dry-run', ...specs], {
-      cwd: root,
-      env: {
-        ...process.env,
-        PATH: `${mockBin}${path.delimiter}${process.env.PATH}`,
-        PROCESS_LOG: processLog,
-        PROCESSES: processes,
-        PROCESS_EXIT: String(processExit),
-        REOPENED: String(reopened),
-        MARKTEXT_INSTALL_ARCH: 'arm64',
-        PREFLIGHT_LOG: log,
-        COLLECTION_EXIT: String(collectionExit)
-      }
-    })
+    runArgs,
+    run: (...specs) => runArgs('--dry-run', ...specs)
   }
 }
 
@@ -71,6 +73,31 @@ function noInstallSteps (error) {
   assert.doesNotMatch(error.stdout, /electron-vite|electron-builder|\+ mv|\+ cp/)
   return true
 }
+
+test('help exits without configuration, test collection or process inspection', async t => {
+  const setup = await fixture(t, { config: false, runner: false, processExit: 1 })
+  for (const args of [['--help'], ['-h'], ['--dry-run', '--help'], ['case.spec.ts', '--help']]) {
+    const result = await setup.runArgs(...args)
+    assert.match(result.stdout, /Usage: scripts\/install-local-macos\.sh/)
+    assert.equal(result.stderr, '')
+    noInstallSteps(result)
+  }
+  await assert.rejects(fs.access(setup.log), { code: 'ENOENT' })
+  await assert.rejects(fs.access(setup.processLog), { code: 'ENOENT' })
+})
+
+test('unknown options cannot bypass required test collection or change the output location', async t => {
+  const setup = await fixture(t)
+  for (const option of ['--pass-with-no-tests', '--output=/tmp/other', '--dryrun']) {
+    await assert.rejects(setup.run('case.spec.ts', option), error => {
+      assert.equal(error.code, 2)
+      assert.match(error.stderr, /Unknown option/)
+      return noInstallSteps(error)
+    })
+  }
+  await assert.rejects(fs.access(setup.log), { code: 'ENOENT' })
+  await assert.rejects(fs.access(setup.processLog), { code: 'ENOENT' })
+})
 
 test('missing config fails before collection, build or app replacement', async t => {
   const setup = await fixture(t, { config: false })
