@@ -190,13 +190,19 @@ function removeStructuralLine(clipboard: Clipboard, block: Parent): boolean {
     return next == null && previous != null;
 }
 
+function textLineStart(text: string, offset: number): number {
+    // lastIndexOf clamps a negative position to zero, so at offset 0 a
+    // leading newline would otherwise be mistaken for the previous line end.
+    return offset > 0 ? text.lastIndexOf('\n', offset - 1) + 1 : 0;
+}
+
 function textLineClipboard(
     content: Content,
     offset: number,
 ): ICollapsedLineClipboard {
     const text = content.text;
     const cursorOffset = Math.min(Math.max(offset, 0), text.length);
-    const start = text.lastIndexOf('\n', cursorOffset - 1) + 1;
+    const start = textLineStart(text, cursorOffset);
     const nextBreak = text.indexOf('\n', cursorOffset);
     const copyEnd = nextBreak < 0 ? text.length : nextBreak + 1;
     const deleteStart = nextBreak < 0 && start > 0 ? start - 1 : start;
@@ -296,7 +302,7 @@ export function pasteCopiedLine(clipboard: Clipboard, copy: TLineCopy): boolean 
         if (block.blockName !== copy.sourceBlockName)
             return false;
 
-        const lineStart = block.text.lastIndexOf('\n', offset - 1) + 1;
+        const lineStart = textLineStart(block.text, offset);
         const nextBreak = block.text.indexOf('\n', offset);
         const start = copy.pasteAfter
             ? nextBreak < 0 ? block.text.length : nextBreak + 1

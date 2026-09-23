@@ -180,6 +180,69 @@ describe('collapsed line clipboard', () => {
         expect(codeMuya.getMarkdown()).toBe('```js\none\nthree\n```\n');
     });
 
+    it.each([
+        { name: 'first blank line', text: '\none\ntwo', offset: 0, after: 'one\ntwo', copied: '\n', cursor: 0 },
+        { name: 'consecutive leading blank lines', text: '\n\none', offset: 0, after: '\none', copied: '\n', cursor: 0 },
+        { name: 'only blank lines', text: '\n', offset: 0, after: '', copied: '\n', cursor: 0 },
+        { name: 'first nonempty line at column zero', text: 'one\ntwo', offset: 0, after: 'two', copied: 'one\n', cursor: 0 },
+        { name: 'first nonempty line inside text', text: 'one\ntwo', offset: 2, after: 'two', copied: 'one\n', cursor: 0 },
+        { name: 'middle blank line', text: 'one\n\ntwo', offset: 4, after: 'one\ntwo', copied: '\n', cursor: 4 },
+        { name: 'last blank line', text: 'one\n', offset: 4, after: 'one', copied: '\n', cursor: 3 },
+    ])('cuts the $name in a code block and restores it with undo', ({ text, offset, after, copied, cursor }) => {
+        const markdown = `\`\`\`js\n${text}\n\`\`\`\n`;
+        const muya = bootMuya(markdown);
+        const code = contentBlocks(muya).find(block => block.blockName === 'codeblock.content')!;
+        expect(code.text).toBe(text);
+        placeCursor(code, offset);
+
+        const clipboard = dispatchClipboard(muya, 'cut');
+        muya.editor.jsonState.flush();
+        expect(clipboard.get('text/plain')).toBe(copied);
+        expect(code.text).toBe(after);
+        expect(muya.getMarkdown()).toBe(`\`\`\`js\n${after}\n\`\`\`\n`);
+        const selection = muya.editor.selection.getSelection()!;
+        expect(selection.isCollapsed).toBe(true);
+        expect(selection.anchor.block).toBe(code);
+        expect(selection.anchor.offset).toBe(cursor);
+
+        muya.undo();
+        muya.editor.jsonState.flush();
+        expect(muya.getMarkdown()).toBe(markdown);
+        muya.redo();
+        muya.editor.jsonState.flush();
+        expect(muya.getMarkdown()).toBe(`\`\`\`js\n${after}\n\`\`\`\n`);
+    });
+
+    it('copies and duplicates a leading blank code line without moving to the next line', () => {
+        const muya = bootMuya('```js\n\none\n```\n');
+        const code = contentBlocks(muya).find(block => block.blockName === 'codeblock.content')!;
+        placeCursor(code, 0);
+
+        const clipboard = dispatchClipboard(muya, 'copy');
+        expect(clipboard.get('text/plain')).toBe('\n');
+        expect(code.text).toBe('\none');
+        expect(muya.editor.selection.getSelection()!.anchor.offset).toBe(0);
+
+        dispatchClipboard(muya, 'paste', clipboard);
+        muya.editor.jsonState.flush();
+        expect(code.text).toBe('\n\none');
+        expect(muya.editor.selection.getSelection()!.anchor.offset).toBe(0);
+    });
+
+    it('pastes a copied code line before a leading blank line, not after it', () => {
+        const muya = bootMuya('```js\n\none\n```\n');
+        const code = contentBlocks(muya).find(block => block.blockName === 'codeblock.content')!;
+        placeCursor(code, 2);
+        const clipboard = dispatchClipboard(muya, 'copy');
+        expect(clipboard.get('text/plain')).toBe('one');
+
+        placeCursor(code, 0);
+        dispatchClipboard(muya, 'paste', clipboard);
+        muya.editor.jsonState.flush();
+        expect(code.text).toBe('one\n\none');
+        expect(muya.editor.selection.getSelection()!.anchor.offset).toBe(1);
+    });
+
     it('keeps an enclosing list when cutting a line from its nested code block', async () => {
         const muya = bootMuya('- item\n\n  ```js\n  code\n  ```\n');
         const code = contentBlocks(muya).find(block => block.text === 'code')!;
