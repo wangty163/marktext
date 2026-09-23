@@ -16,6 +16,14 @@ the target row; see `code-block-cut-empty-line.spec.ts`, verified against both t
 source build and installed app. For import tests, explicitly choose the preference
 instead. Recheck these defaults when either preference source or import behavior changes.
 
+## Selection below the document
+
+`selection-below-document.spec.ts` releases a real drag below the final block,
+checks the selected word count, captures the highlight, then replaces the range
+and verifies the saved file. It also checks that a fresh blank-area click still
+creates/reuses an empty paragraph. Do not substitute a programmatic range: the
+regression depends on the container `click` Chromium emits after the drag.
+
 ## Runs never take over the machine
 
 Playwright cannot start Electron headless, so a plain run puts a real window on the

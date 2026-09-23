@@ -18,6 +18,7 @@ interface IBlurFocus {
 
 export class ScrollPage extends Parent {
     private _blurFocus: IBlurFocus = { blur: null, focus: null };
+    private _blankAreaPress: { x: number; y: number } | null = null;
 
     static override blockName = 'scrollpage';
 
@@ -90,6 +91,21 @@ export class ScrollPage extends Parent {
         const { eventCenter } = this.muya;
         const { domNode } = this;
 
+        eventCenter.attachDOMEvent(domNode!, 'mousedown', (event) => {
+            this._blankAreaPress = isMouseEvent(event) && event.button === 0 && event.target === domNode
+                ? { x: event.clientX, y: event.clientY }
+                : null;
+        });
+        eventCenter.attachDOMEvent(domNode!, 'mousemove', (event) => {
+            const press = this._blankAreaPress;
+            if (press && isMouseEvent(event)
+                && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 4) {
+                this._blankAreaPress = null;
+            }
+        });
+        eventCenter.attachDOMEvent(domNode!, 'mouseleave', () => {
+            this._blankAreaPress = null;
+        });
         eventCenter.attachDOMEvent(domNode!, 'click', this._clickHandler.bind(this));
     }
 
@@ -185,6 +201,15 @@ export class ScrollPage extends Parent {
             return;
 
         const target = event.target;
+        const press = this._blankAreaPress;
+        this._blankAreaPress = null;
+
+        // Releasing a text drag below the document also clicks this container.
+        // Only a stationary press that began on the blank surface may append a
+        // paragraph. The current range cannot distinguish it: a fresh blank
+        // click can retain a selection left by an earlier gesture in Chromium.
+        if (!press || event.shiftKey)
+            return;
 
         if (target[BLOCK_DOM_PROPERTY] === this) {
             const lastChild = this.lastChild as Parent;
