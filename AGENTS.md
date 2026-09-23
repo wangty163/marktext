@@ -82,7 +82,7 @@ The shared launcher supplies an isolated temporary profile. Do not use app-level
 separately shell-launched CDP instance for this case: the shared bundle id and single-instance lock
 can target the user's window or terminate the QA instance.
 Run this installed-app path directly from `packages/desktop` with
-`MARKTEXT_E2E_EXECUTABLE=/Applications/MarkText.app/Contents/MacOS/marktext ./node_modules/.bin/playwright test --config=test/e2e/playwright.config.ts <spec>`;
+`MARKTEXT_E2E_EXECUTABLE=/Applications/MarkText.app/Contents/MacOS/marktext ./node_modules/.bin/playwright test --config=playwright.config.ts <spec>`;
 do not route it through pnpm, whose workspace reconciliation can abort in a non-interactive run.
 
 ## Commit & Pull Request Guidelines

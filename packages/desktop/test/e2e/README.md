@@ -64,7 +64,7 @@ navigation tests, not undo/redo or clean-start tests.
   launcher and target the captured child process, never a bundle name or PID search.
 
 Lifecycle unit tests use fake child processes and timers; they do not launch
-Electron. `playwright test --config=test/e2e/playwright.config.ts
+Electron. `playwright test --config=playwright.config.ts
 text-files-startup.spec.ts --list` also checks collection without opening the app.
 
 A bare `launchElectron()` follows the configured startup action and opens a blank

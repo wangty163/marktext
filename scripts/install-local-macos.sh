@@ -117,7 +117,7 @@ fi
 
 run env MARKTEXT_E2E_EXECUTABLE="$installed_app/Contents/MacOS/marktext" \
   "$desktop_dir/node_modules/.bin/playwright" test \
-  --config="$desktop_dir/test/e2e/playwright.config.ts" "$@"
+  --config="$desktop_dir/playwright.config.ts" "$@"
 
 install_started=false
 if $dry_run; then
