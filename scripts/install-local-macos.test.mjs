@@ -9,7 +9,10 @@ import test from 'node:test'
 const execFileAsync = promisify(execFile)
 const scriptPath = new URL('./install-local-macos.sh', import.meta.url)
 
-async function fixture (t, { config = true, runner = true, collectionExit = 0 } = {}) {
+async function fixture (t, {
+  config = true, runner = true, collectionExit = 0,
+  processes = '', processExit = 0, reopened = false
+} = {}) {
   // A separate tree (including spaces) keeps every case away from the real
   // build and app. Even the success case uses --dry-run after collection.
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'marktext install-preflight-'))
@@ -21,6 +24,18 @@ async function fixture (t, { config = true, runner = true, collectionExit = 0 } 
   await fs.mkdir(bin, { recursive: true })
   await fs.mkdir(path.dirname(script), { recursive: true })
   await fs.copyFile(scriptPath, script)
+  const mockBin = path.join(root, 'mock-bin')
+  const processLog = path.join(root, 'process-check.log')
+  await fs.mkdir(mockBin)
+  await fs.writeFile(path.join(mockBin, 'ps'), `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$PROCESS_LOG"
+if [[ "$PROCESS_EXIT" != 0 ]]; then exit "$PROCESS_EXIT"; fi
+if [[ "$REOPENED" == true && $(wc -l < "$PROCESS_LOG") -gt 1 ]]; then
+  printf '  456 /Applications/MarkText.app/Contents/MacOS/marktext\\n'
+else
+  printf '%s\\n' "$PROCESSES"
+fi
+`, { mode: 0o755 })
   if (config) await fs.writeFile(path.join(desktop, 'playwright.config.ts'), '// fixture')
   if (runner) {
     await fs.writeFile(path.join(bin, 'playwright'), `#!/usr/bin/env bash
@@ -34,10 +49,16 @@ exit "$COLLECTION_EXIT"
   return {
     desktop,
     log,
+    processLog,
     run: (...specs) => execFileAsync('bash', [script, '--dry-run', ...specs], {
       cwd: root,
       env: {
         ...process.env,
+        PATH: `${mockBin}${path.delimiter}${process.env.PATH}`,
+        PROCESS_LOG: processLog,
+        PROCESSES: processes,
+        PROCESS_EXIT: String(processExit),
+        REOPENED: String(reopened),
         MARKTEXT_INSTALL_ARCH: 'arm64',
         PREFLIGHT_LOG: log,
         COLLECTION_EXIT: String(collectionExit)
@@ -94,4 +115,50 @@ test('dry run collects the exact filters from the desktop package before printin
   ])
   assert.match(stdout, /electron-vite/)
   assert.match(stdout, /Dry run complete/)
+  assert.deepEqual((await fs.readFile(setup.processLog, 'utf8')).trim().split('\n'), [
+    '-axo pid=,comm=', '-axo pid=,comm='
+  ])
+})
+
+test('running installed main process fails before build or replacement', async t => {
+  const setup = await fixture(t, {
+    processes: '  123 /Applications/MarkText.app/Contents/MacOS/marktext'
+  })
+  await assert.rejects(setup.run('case.spec.ts'), error => {
+    assert.equal(error.code, 3)
+    assert.match(error.stderr, /still running \(PID: 123\).*quit normally/)
+    return noInstallSteps(error)
+  })
+})
+
+test('unavailable process snapshot fails closed before build or replacement', async t => {
+  const setup = await fixture(t, { processExit: 1 })
+  await assert.rejects(setup.run('case.spec.ts'), error => {
+    assert.equal(error.code, 3)
+    assert.match(error.stderr, /Cannot inspect running applications/)
+    return noInstallSteps(error)
+  })
+})
+
+test('another executable or a command mentioning the app path does not block installation', async t => {
+  const setup = await fixture(t, {
+    processes: [
+      '  123 /tmp/MarkText.app/Contents/MacOS/marktext',
+      '  124 /bin/sh /Applications/MarkText.app/Contents/MacOS/marktext',
+      '  125 /Applications/MarkText.app/Contents/MacOS/marktext-other'
+    ].join('\n')
+  })
+  const { stdout } = await setup.run('case.spec.ts')
+  assert.match(stdout, /Dry run complete/)
+})
+
+test('an app reopened during packaging blocks replacement at the second check', async t => {
+  const setup = await fixture(t, { reopened: true })
+  await assert.rejects(setup.run('case.spec.ts'), error => {
+    assert.equal(error.code, 3)
+    assert.match(error.stdout, /electron-builder/)
+    assert.doesNotMatch(error.stdout, /\+ mv|\+ cp/)
+    assert.match(error.stderr, /still running \(PID: 456\)/)
+    return true
+  })
 })

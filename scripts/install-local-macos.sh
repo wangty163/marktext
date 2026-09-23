@@ -4,7 +4,8 @@ set -euo pipefail
 
 usage() {
   echo "Usage: scripts/install-local-macos.sh [--dry-run] <e2e-spec> [<e2e-spec> ...]"
-  echo 'Always validates test collection first; --dry-run only prints the remaining install steps.'
+  echo 'Validates test collection and requires the installed app to be closed; never quits it for you.'
+  echo '--dry-run performs those checks and only prints the remaining install steps.'
 }
 
 dry_run=false
@@ -50,6 +51,24 @@ esac
     "$playwright_bin" test --config="$playwright_config" --list "$@"
 )
 
+# Fail closed if the process snapshot is unavailable. Match the executable
+# path, not a bundle name or command argument that could belong to another app.
+require_app_closed() {
+  local processes running
+  if ! processes=$(ps -axo pid=,comm=); then
+    echo 'Cannot inspect running applications; refusing app replacement.' >&2
+    return 3
+  fi
+  running=$(printf '%s\n' "$processes" | awk -v target="$installed_app/Contents/MacOS/marktext" '
+    { pid = $1; sub(/^[[:space:]]*[0-9]+[[:space:]]+/, ""); if ($0 == target) print pid }
+  ')
+  if [[ -n "$running" ]]; then
+    echo "Installed MarkText is still running (PID: $running). Save your work and quit normally, then retry. No app files were replaced." >&2
+    return 3
+  fi
+}
+
+require_app_closed
 packaged_app="$repo_root/dist/$package_dir/marktext.app"
 if $dry_run; then
   scratch='/private/tmp/marktext-local-install.DRYRUN'
@@ -94,6 +113,8 @@ if ! $dry_run; then
   [[ -d "$packaged_app" ]] || { echo "$packaged_app was not produced." >&2; exit 1; }
 fi
 
+# The user may have reopened the app while packaging was running.
+require_app_closed
 run mv "$installed_app" "$backup_app"
 install_started=true
 run cp -R "$packaged_app" "$installed_app"
