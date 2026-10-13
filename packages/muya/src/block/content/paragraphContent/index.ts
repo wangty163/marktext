@@ -4,14 +4,15 @@ import type { IRenderCursor } from '../../../selection/types';
 import type {
     IBlockQuoteState,
     IBulletListState,
-    IDiagramMeta,
     IListItemState,
     IOrderListState,
     IParagraphState,
     ITaskListItemState,
     ITaskListState,
+    TState,
 } from '../../../state/types';
 import type { Nullable } from '../../../types';
+import type { ICodeFence } from '../../../utils/codeFence';
 import type Content from '../../base/content';
 import type Parent from '../../base/parent';
 import type BulletList from '../../commonMark/bulletList';
@@ -20,6 +21,8 @@ import { HTML_TAGS, VOID_HTML_TAGS } from '../../../config';
 import { tokenizer } from '../../../inlineRenderer/lexer';
 import { isListItemState, isTaskListItemState } from '../../../state/types';
 import { isKeyboardEvent, isLengthEven } from '../../../utils';
+import { codeFenceAtOffset } from '../../../utils/codeFence';
+import { createDiagramState, diagramTypeOfLang } from '../../../utils/diagram/fence';
 import logger from '../../../utils/logger';
 import Format from '../../base/format';
 import OrderList from '../../commonMark/orderList';
@@ -61,31 +64,23 @@ function holdsItemKind(list: Parent, listItem: Parent) {
 const debug = logger('paragraph:content');
 
 const HTML_BLOCK_REG = /^<([a-z\d-]+)(?=\s|>)[^<>]*>$/i;
-const CODE_BLOCK_REG = /(^ {0,3}`{3,})([^` ]*)/;
 const MATH_BLOCK_REG = /^\$\$[ \t]*$/;
 // eslint-disable-next-line regexp/no-super-linear-backtracking
 const TABLE_BLOCK_REG = /^\|.*?(\\*)\|.*?(\\*)\|/;
 
 type BlockConversion
     = | { kind: 'math' }
-        | { kind: 'code'; lang: string }
         | { kind: 'table' }
         | { kind: 'html'; tagName: string };
 
-// Single source of truth for "what block, if any, does this paragraph text
-// convert into on Enter". Shared by the enterHandler guard (to decide whether
-// to convert in place) and `_enterConvert` (to perform it), so the match rules
-// can never drift between the two.
+// Whole-paragraph conversions share this guard with `_enterConvert`. Code
+// fences use codeFenceAtOffset instead because they can interrupt a paragraph.
 function matchBlockConversion(text: string, texMathDollars: boolean): BlockConversion | null {
     // A `$$` paragraph only becomes a math block while the dollar syntax is
     // recognised; otherwise the block would serialize to markdown this editor
     // no longer reads back (#5446).
     if (texMathDollars && MATH_BLOCK_REG.test(text))
         return { kind: 'math' };
-
-    const codeBlockToken = text.match(CODE_BLOCK_REG);
-    if (codeBlockToken)
-        return { kind: 'code', lang: codeBlockToken[2] };
 
     const tableMatch = TABLE_BLOCK_REG.exec(text);
     if (tableMatch && isLengthEven(tableMatch[1]) && isLengthEven(tableMatch[2]))
@@ -301,9 +296,58 @@ class ParagraphContent extends Format {
 
     override inputHandler(event: Event) {
         super.inputHandler(event);
+        if (!this.isComposed && this.outMostBlock) {
+            const cursor = this.getCursor();
+            const fence = cursor?.isCollapsed && codeFenceAtOffset(this.text, cursor.start.offset, true);
+            if (fence) {
+                this.convertCodeFence(fence, fence.lang, cursor.start.offset);
+                return;
+            }
+        }
         const { eventCenter } = this.muya;
 
         eventCenter.emit('content-change', { block: this });
+    }
+
+    getCodeFence(): ICodeFence | null {
+        const cursor = this.getCursor();
+        return cursor?.isCollapsed ? codeFenceAtOffset(this.text, cursor.start.offset) : null;
+    }
+
+    convertCodeFence(fence: ICodeFence, lang = fence.lang, offset = fence.bodyStart) {
+        const { muya, parent, text } = this;
+        if (!parent?.parent)
+            return;
+
+        const diagramType = diagramTypeOfLang(fence.lang) ?? diagramTypeOfLang(lang);
+        const state: TState = muya.options.texMathGfm && lang === 'math'
+            ? { name: 'math-block', meta: { mathStyle: 'gfm' }, text: fence.text }
+            : diagramType
+                ? createDiagramState(diagramType, fence.text)
+                : {
+                        name: 'code-block',
+                        meta: { lang, type: 'fenced', fenceLength: fence.fenceLength },
+                        text: fence.text,
+                    };
+        const codeBlock = ScrollPage.loadBlock(state.name).create(muya, state);
+
+        if (fence.start > 0) {
+            const before = ScrollPage.loadBlock('paragraph').create(muya, {
+                name: 'paragraph',
+                text: text.slice(0, fence.start - 1),
+            });
+            parent.parent.insertBefore(before, parent);
+        }
+        if (fence.end < text.length) {
+            const after = ScrollPage.loadBlock('paragraph').create(muya, {
+                name: 'paragraph',
+                text: text.slice(fence.end + 1),
+            });
+            parent.parent.insertAfter(after, parent);
+        }
+        parent.replaceWith(codeBlock);
+        const caret = Math.max(0, Math.min(offset - fence.bodyStart, fence.text.length));
+        codeBlock.lastContentInDescendant().setCursor(caret, caret, true);
     }
 
     private _enterConvert(event: KeyboardEvent) {
@@ -329,52 +373,6 @@ class ParagraphContent extends Format {
                 );
                 this.parent!.replaceWith(mathBlock);
                 mathBlock.firstContentInDescendant().setCursor(0, 0);
-                break;
-            }
-
-            case 'code': {
-                const { lang } = match;
-                // Diagram fences (```mermaid etc.) become diagram blocks,
-                // mirroring the file-load path in markdownToState; everything
-                // else is a fenced code block.
-                const diagramMatch = /^(?:mermaid|vega-lite|plantuml|flowchart|sequence)$/.exec(lang);
-                if (diagramMatch) {
-                    const type = lang as IDiagramMeta['type'];
-                    const state = {
-                        name: 'diagram',
-                        text: '',
-                        meta: {
-                            type,
-                            lang: type === 'vega-lite' ? 'json' : 'yaml',
-                        },
-                    };
-                    const diagramBlock = ScrollPage.loadBlock(state.name).create(
-                        this.muya,
-                        state,
-                    );
-
-                    this.parent!.replaceWith(diagramBlock);
-
-                    diagramBlock.firstContentInDescendant().setCursor(0, 0, true);
-                }
-                else {
-                    const state = {
-                        name: 'code-block',
-                        meta: {
-                            lang,
-                            type: 'fenced',
-                        },
-                        text: '',
-                    };
-                    const codeBlock = ScrollPage.loadBlock(state.name).create(
-                        this.muya,
-                        state,
-                    );
-
-                    this.parent!.replaceWith(codeBlock);
-
-                    codeBlock.lastContentInDescendant().setCursor(0, 0);
-                }
                 break;
             }
 
@@ -648,7 +646,15 @@ class ParagraphContent extends Format {
         if (event.shiftKey && !this.dropSoftBreakBeforeCursor())
             return this.shiftEnterHandler(event);
 
-        // Any paragraph that would convert to a block (code fence, math block,
+        const fence = this.getCodeFence();
+        if (fence) {
+            event.preventDefault();
+            event.stopPropagation();
+            this.muya.editor.history.markInputBoundary('insertParagraph', '\n');
+            return this.convertCodeFence(fence);
+        }
+
+        // Any paragraph that would convert to a block (math block,
         // table, HTML block) converts in place, even inside a block-quote or
         // list item — the resulting block stays nested in its container
         // (matches muyajs). Otherwise typing the block syntax in a list would

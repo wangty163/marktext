@@ -7,6 +7,13 @@ installed path documented in the root `AGENTS.md`.
 
 ## Code-block blank-line fixtures
 
+`code-block-typing.spec.ts` types fences into an empty document and after paragraph
+line breaks, including language-picker confirmation and manually completed fences.
+It types immediately after conversion to catch asynchronous highlighting that moves
+the caret, then checks both the saved Markdown and the reopened editor. Fence tests
+must include paragraph-internal newlines: testing only an empty document misses the
+desktop's literal-newline editing path.
+
 Desktop's default `trimUnnecessaryCodeBlockEmptyLines` is `true`
 (`src/renderer/src/store/preferences.ts`); Muya's standalone default is `false`
 (`packages/muya/src/config/index.ts`). With the desktop setting enabled, importing

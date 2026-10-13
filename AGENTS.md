@@ -89,7 +89,25 @@ do not route it through pnpm, whose workspace reconciliation can abort in a non-
 
 Follow the history's Conventional Commit style: `fix(desktop): preserve RTL text direction`, `fix(muya): ...`, or `docs: ...`. Keep commits scoped and avoid drive-by cleanup. Open PRs against `develop`, link the issue (`Closes #123`), explain the problem and solution, include a test plan, and attach screenshots or recordings for visible changes. Run relevant tests, `pnpm check`, and CI before requesting review.
 
-After every completed development task in this repository, decide whether the README or related docs need updating, commit the verified task changes, and push the current branch to `origin` unless the user explicitly says not to. Do not include unrelated user changes in the commit.
+For application changes, deliver a local test build before committing or publishing:
+
+1. Complete the necessary implementation and automated checks, decide whether the
+   README or related docs need updating, then replace `/Applications/MarkText.app`
+   using the installation lifecycle below.
+2. Hand the installed build to the user for manual testing. Wait for the user's
+   explicit confirmation that it passes; automated tests do not replace this
+   acceptance. Until then, keep changes uncommitted and do not push, tag, or publish
+   a GitHub Release. If more application changes are needed, install the revised
+   build and repeat user acceptance.
+3. After the user confirms acceptance, choose the next available version, update
+   the root and desktop package versions consistently, commit only the accepted
+   task changes, and push to `origin`. Create the matching `v<version>` tag and use
+   `.github/workflows/release.yml` to publish a GitHub Release with release notes
+   and build assets. Verify the version appears in the repository's Releases as a
+   published release, not just a tag or draft. The user's acceptance authorizes
+   this agreed release sequence; do not ask for redundant publication approval.
+
+Do not include unrelated user changes in the commit or release.
 
 For local macOS installs, replace only `/Applications/MarkText.app`: move the existing bundle to a non-`.app` backup outside `/Applications`, copy the verified build to that exact path, then unregister and move the packaged `.app` artifact out of the indexed workspace. Treat LaunchServices error `-10814` as “not registered” and do not retry renamed backups. Confirm that bundle-id lookup returns only the installed application.
 Use `scripts/install-local-macos.sh <e2e-spec>` from the repository root for this lifecycle. It checks the Playwright config and collects the requested tests, then rejects a running installed main process before building and again before replacing the app; process inspection failure also aborts. Save and quit normally before retrying; the script never quits or kills the app. `--dry-run` performs those same checks and only prints the remaining steps. Run a real install with host authorization because it writes `/Applications` and launches Electron; it builds, packages, keeps a recoverable non-`.app` backup, verifies the installed bundle and runs the requested installed-app E2E, restoring the previous app if any step fails.

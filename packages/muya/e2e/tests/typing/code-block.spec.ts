@@ -25,13 +25,54 @@ test.describe('code block', () => {
         await page.keyboard.press('Enter');
         await expect(page.locator(editor.codeBlock).first()).toBeVisible();
         await expect(page.locator(editor.languageInput).first()).toBeVisible();
+        await slowType(page, 'first line');
+        await page.keyboard.press('Enter');
+        await slowType(page, 'second line');
+        expect(await getMarkdown(page)).toBe('```\nfirst line\nsecond line\n```\n');
     });
 
-    test('typing ```<lang> + Enter records the lang via setContent path', async ({ page }) => {
-        // Note: typing through the language token after ``` is timing-sensitive
-        // because the code-block language selector popup intercepts subsequent
-        // keystrokes. To assert lang behavior deterministically we go through
-        // the public state shape.
+    for (const breaks of [1, 2]) {
+        for (const lang of ['', 'js']) {
+            test(`typing a ${lang || 'plain'} fence after ${breaks} paragraph line breaks keeps the preceding text`, async ({ page }) => {
+                await page.evaluate(() => window.__e2e!.rebuildMuya({ preserveParagraphLineBreaks: true }));
+                await page.evaluate(() => window.muya!.setContent(''));
+                await page.locator(editor.paragraph).first().click();
+                await slowType(page, 'before');
+                for (let i = 0; i < breaks; i++)
+                    await page.keyboard.press('Enter');
+                await slowType(page, `\`\`\`${lang}`);
+                await page.keyboard.press('Enter');
+
+                await expect(page.locator(editor.codeBlock)).toHaveCount(1);
+                await slowType(page, 'first line');
+                await page.keyboard.press('Enter');
+                await slowType(page, 'second line');
+                const blocks = await getBlocks(page);
+                expect(blocks.map(block => block.name)).toEqual(['paragraph', 'code-block']);
+                expect(blocks[0].text).toBe(`before${'\n'.repeat(breaks - 1)}`);
+                expect(blocks[1].text).toBe('first line\nsecond line');
+                expect(await getMarkdown(page)).toContain(`\`\`\`${lang}\nfirst line\nsecond line\n\`\`\`\n`);
+            });
+        }
+    }
+
+    test('manually typed fence lines keep their line breaks while entering code', async ({ page }) => {
+        await page.evaluate(() => window.__e2e!.rebuildMuya({ preserveParagraphLineBreaks: true }));
+        await page.evaluate(() => window.muya!.setContent(''));
+        await page.locator(editor.paragraph).first().click();
+        await slowType(page, 'before');
+        await page.keyboard.press('Enter');
+        await slowType(page, '```');
+        await page.keyboard.press('Shift+Enter');
+        await page.keyboard.press('Shift+Enter');
+        await slowType(page, '```');
+        await expect(page.locator(editor.codeBlock)).toHaveCount(1);
+        expect(await getMarkdown(page)).toContain('```\n\n```');
+        await slowType(page, 'code');
+        expect(await getMarkdown(page)).toContain('```\ncode\n```');
+    });
+
+    test('importing a language fence preserves its language and code', async ({ page }) => {
         await page.evaluate(() => {
             window.muya!.setContent('```javascript\nconsole.log(1);\n```\n');
         });

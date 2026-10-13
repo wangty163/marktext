@@ -7,6 +7,13 @@ collection, builds and packages, backs up the old app, replaces only
 requested specs against the installed executable. An installation failure restores
 the backup. The process checks never quit or kill the user's app.
 
+The installed build is handed to the user for manual acceptance before any commit
+or publication. Only after the user confirms it passes should the version be
+advanced, the accepted changes committed and pushed, and a matching version tag released
+through `.github/workflows/release.yml`. Confirm the new version is visible in
+GitHub Releases with its notes and build assets; automated checks alone do not
+authorize this step.
+
 - `--help` / `-h`: print usage without collecting tests, inspecting processes,
   building or installing. Works without dependencies installed.
 - `--dry-run`: collect tests and check that the installed app is closed, then print

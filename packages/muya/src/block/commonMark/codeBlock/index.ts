@@ -91,8 +91,15 @@ class CodeBlock extends Parent {
                 const needRender = infoList.some(
                     ({ status }) => status === 'loaded' || status === 'cached',
                 );
-                if (needRender)
-                    this.lastContentInDescendant()?.update();
+                const content = this.lastContentInDescendant();
+                if (needRender && content && this.outMostBlock && this.lang === value) {
+                    // Highlighting replaces the text nodes asynchronously, often
+                    // after the user has already started typing into a new block.
+                    const selection = this.muya.editor.selection.getSelection();
+                    content.update();
+                    if (selection && (selection.anchor.block === content || selection.focus.block === content))
+                        this.muya.editor.selection.setSelection(selection.anchor, selection.focus);
+                }
             })
             .catch((err) => {
                 // if no parameter provided, will cause error.

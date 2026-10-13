@@ -2,8 +2,7 @@ import type { VNode } from 'snabbdom';
 import type LangInputContent from '../../block/content/langInputContent';
 import type ParagraphContent from '../../block/content/paragraphContent';
 import type { Muya } from '../../index';
-import { ScrollPage } from '../../block/scrollPage';
-import { createDiagramState, diagramTypeOfLang } from '../../utils/diagram/fence';
+import type { ICodeFence } from '../../utils/codeFence';
 import { search } from '../../utils/prism';
 
 import { h, patch } from '../../utils/snabbdom';
@@ -22,35 +21,12 @@ const defaultOptions = {
     showArrow: false,
 };
 
-// The language the user actually typed after the ``` fence. The selector's
-// fuzzy search may resolve a non-code language (e.g. `vega-lite`) to an
-// unrelated Prism language, so the diagram check tries this raw text before
-// the picked item.
-function typedFenceLang(text: string): string {
-    return text.match(/`{3,}\s*([\w-]+)/)?.[1] ?? '';
-}
-
-// Build the state for the block a ```lang fence becomes. A diagram language,
-// typed in full or picked from a partial query (`mer` → mermaid, #5060),
-// becomes a diagram block, mirroring markdownToState's file-load path; gfm
-// math becomes a math-block; everything else a fenced code block highlighted
-// with the selector's matched language.
-function newBlockStateForLang(typedLang: string, matchedLang: string, isGfmMath: boolean) {
-    if (isGfmMath)
-        return { name: 'math-block', meta: { mathStyle: 'gfm' }, text: '' };
-
-    const diagramType = diagramTypeOfLang(typedLang) ?? diagramTypeOfLang(matchedLang);
-    if (diagramType)
-        return createDiagramState(diagramType);
-
-    return { name: 'code-block', meta: { lang: matchedLang, type: 'fenced' }, text: '' };
-}
-
 export class CodeBlockLanguageSelector extends BaseScrollFloat {
     static pluginName = 'codePicker';
     public override capturesContentKeydown = true;
     private _oldVNode: VNode | null = null;
     private _block: ParagraphContent | LangInputContent | null = null;
+    private _fence: ICodeFence | null = null;
 
     constructor(muya: Muya, options = {}) {
         const name = 'mu-list-picker';
@@ -69,10 +45,13 @@ export class CodeBlockLanguageSelector extends BaseScrollFloat {
 
             const { text, domNode } = block;
             let lang = '';
+            this._fence = null;
             if (block.blockName === 'paragraph.content') {
-                const token = text.match(/(^ {0,3}`{3,})([^` ]+)/);
-                if (token && token[2])
-                    lang = token[2];
+                this._fence = block.getCodeFence();
+                // A full info string can include attributes; picking a language
+                // must not discard those attributes.
+                if (this._fence && !/\s/.test(this._fence.lang))
+                    lang = this._fence.lang;
             }
             else if (block.blockName === 'language-input') {
                 lang = text;
@@ -167,7 +146,7 @@ export class CodeBlockLanguageSelector extends BaseScrollFloat {
     }
 
     override selectItem(item: { name: string }) {
-        const { _block: block, muya } = this;
+        const { _block: block } = this;
         const { name } = item;
 
         if (!block)
@@ -185,17 +164,10 @@ export class CodeBlockLanguageSelector extends BaseScrollFloat {
         }
 
         if (isParagraphContent(block)) {
-            const isGfmMath
-                = muya.options.texMathGfm && name === 'math';
-            const state = newBlockStateForLang(typedFenceLang(block.text), name, isGfmMath);
-
-            const newBlock = ScrollPage.loadBlock(state.name).create(
-                this.muya,
-                state,
-            );
-            block.parent?.replaceWith(newBlock);
-            const codeContent = newBlock.lastContentInDescendant();
-            codeContent?.setCursor(0, 0);
+            if (!this._fence)
+                return;
+            this.muya.editor.history.markInputBoundary('insertParagraph', '\n');
+            block.convertCodeFence(this._fence, name);
         }
         else {
             const codeBlock = block.parent!;

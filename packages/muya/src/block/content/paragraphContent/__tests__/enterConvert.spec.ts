@@ -7,8 +7,8 @@ import { Muya } from '../../../../muya';
 // ENTER-CONVERT GUARD — pressing Enter on a top-level paragraph whose text is a
 // block-conversion trigger replaces the paragraph with the matching block.
 //
-// `ParagraphContent.enterHandler` routes a plain (non-shift) Enter on a
-// top-level paragraph through `_enterConvert`. That method inspects `this.text`:
+// `ParagraphContent.enterHandler` routes a plain (non-shift) Enter through
+// fence conversion or `_enterConvert`:
 //   - `$$`            -> math-block
 //   - ```` ```lang ```` -> fenced code-block with meta.lang
 //   - `<tag>` (non-void html) -> html-block `<tag>\n\n</tag>`
@@ -40,10 +40,10 @@ afterEach(() => {
         delete (window as Partial<Window>).MUYA_VERSION;
 });
 
-function bootMuya(markdown: string): Muya {
+function bootMuya(markdown: string, preserveParagraphLineBreaks = false): Muya {
     const host = document.createElement('div');
     document.body.appendChild(host);
-    const muya = new Muya(host, { markdown } as ConstructorParameters<typeof Muya>[1]);
+    const muya = new Muya(host, { markdown, preserveParagraphLineBreaks } as ConstructorParameters<typeof Muya>[1]);
     muya.init();
     bootedHosts.push(muya.domNode);
     return muya;
@@ -71,11 +71,10 @@ function contentByText(muya: Muya, text: string): Content {
 // Replace the paragraph content's text with a conversion trigger, render it,
 // land the caret at the end, then route a plain Enter through the handler the
 // way the keydown listener does.
-function enterWithText(muya: Muya, content: Content, text: string): { preventDefault: ReturnType<typeof vi.fn> } {
+function enterWithText(muya: Muya, content: Content, text: string, offset = text.length): { preventDefault: ReturnType<typeof vi.fn> } {
     muya.editor.activeContentBlock = content;
     content.text = text;
     content.update();
-    const offset = content.text.length;
     content.setCursor(offset, offset, true);
     const event = {
         preventDefault: vi.fn(),
@@ -192,6 +191,79 @@ describe('enter on ```` ```js ```` — converts to a fenced code-block', () => {
         const state = muya.getState();
         expect((state[0] as { text: string }).text).toBe('');
     });
+});
+
+describe('fences on paragraph lines', () => {
+    for (const prefix of ['before\n', 'before\n\n', '\n']) {
+        it(`preserves the prefix ${JSON.stringify(prefix)} through conversion and serialization`, async () => {
+            const muya = bootMuya('seed\n', true);
+            const content = contentByText(muya, 'seed');
+            enterWithText(muya, content, `${prefix}\`\`\``);
+            await flush();
+
+            expect(muya.getState()).toMatchObject([
+                { name: 'paragraph', text: prefix.slice(0, -1) },
+                { name: 'code-block', text: '', meta: { lang: '', type: 'fenced' } },
+            ]);
+            expect(muya.getMarkdown()).toBe(`${prefix}\`\`\`\n\n\`\`\`\n`);
+            expect(contentByText(muya, '').getCursor()?.start.offset).toBe(0);
+        });
+    }
+
+    for (const markdown of ['> seed\n', '- seed\n', '1. seed\n', '- [ ] seed\n']) {
+        it(`keeps the fence inside its ${JSON.stringify(markdown)} container`, async () => {
+            const muya = bootMuya(markdown, true);
+            const content = contentByText(muya, 'seed');
+            const container = content.parent!.parent!;
+            enterWithText(muya, content, 'before\n```js');
+            await flush();
+
+            expect(container.firstContentInDescendant()!.text).toBe('before');
+            expect(container.lastContentInDescendant()!.blockName).toBe('codeblock.content');
+            expect(muya.getState()).toHaveLength(1);
+        });
+    }
+
+    it('keeps a manual fence body, its info string, its length and following prose', async () => {
+        const muya = bootMuya('seed\n', true);
+        const text = 'before\n````js title="demo"\nfirst\n```\nlast\n````\nafter';
+        enterWithText(muya, contentByText(muya, 'seed'), text, text.indexOf('\nfirst'));
+        await flush();
+
+        expect(muya.getState()).toMatchObject([
+            { name: 'paragraph', text: 'before' },
+            { name: 'code-block', text: 'first\n```\nlast', meta: { lang: 'js title="demo"', fenceLength: 4 } },
+            { name: 'paragraph', text: 'after' },
+        ]);
+        expect(muya.getMarkdown()).toBe(`${text}\n`);
+    });
+
+    it('undoes and redoes the conversion without losing preceding lines', async () => {
+        const muya = bootMuya('seed\n', true);
+        const content = contentByText(muya, 'seed');
+        const text = 'before\n\n```';
+        content.text = text;
+        content.setCursor(text.length, text.length, true);
+        await flush();
+
+        enterWithText(muya, content, text);
+        await flush();
+        expect(muya.getState()).toHaveLength(2);
+        muya.undo();
+        expect(muya.getState()).toEqual([{ name: 'paragraph', text }]);
+        muya.redo();
+        expect(muya.getMarkdown()).toBe('before\n\n```\n\n```\n');
+        expect(muya.editor.scrollPage!.lastContentInDescendant()!.blockName).toBe('codeblock.content');
+    });
+
+    for (const text of ['before ```', '```inline code```', 'before\n```inline code```']) {
+        it(`keeps inline backticks literal: ${JSON.stringify(text)}`, async () => {
+            const muya = bootMuya('seed\n', true);
+            enterWithText(muya, contentByText(muya, 'seed'), text);
+            await flush();
+            expect(muya.getState()).toEqual([{ name: 'paragraph', text: `${text}\n` }]);
+        });
+    }
 });
 
 // #2177: typing ```` ```mermaid ```` (or any diagram language) and pressing
