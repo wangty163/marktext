@@ -41,25 +41,25 @@ function bootMuya(markdown: string): Muya {
     return muya;
 }
 
-function stubCrossSelection(
+function setCrossSelection(
     muya: Muya,
     anchorBlock: Content,
     anchorOffset: number,
     focusBlock: Content,
     focusOffset: number,
+    backward = false,
 ) {
-    muya.editor.selection.getSelection = () => ({
-        anchor: { offset: anchorOffset, block: anchorBlock, path: anchorBlock.path },
-        focus: { offset: focusOffset, block: focusBlock, path: focusBlock.path },
-        isCollapsed: false,
-        isSelectionInSameBlock: false,
-        direction: SelectionDirection.FORWARD,
+    const start = { offset: anchorOffset, block: anchorBlock, path: anchorBlock.path };
+    const end = { offset: focusOffset, block: focusBlock, path: focusBlock.path };
+    muya.editor.selection.setSelection(backward ? end : start, backward ? start : end);
+    expect(muya.editor.selection.getSelection()).toMatchObject({
+        direction: backward ? SelectionDirection.BACKWARD : SelectionDirection.FORWARD,
         type: SelectionCaretType.RANGE,
     });
 }
 
 describe('copy within a single list', () => {
-    it('truncates both boundary items and keeps fully-selected middle items', () => {
+    it.each([false, true])('truncates both boundary items and keeps fully-selected middle items (backward: %s)', (backward) => {
         const muya = bootMuya('- one\n- two\n- three\n');
         const scrollPage = muya.editor.scrollPage!;
 
@@ -67,16 +67,49 @@ describe('copy within a single list', () => {
         const threeContent = scrollPage.lastContentInDescendant()!;
 
         // after "o" in "one" to after "th" in "three"
-        stubCrossSelection(muya, oneContent, 1, threeContent, 2);
+        setCrossSelection(muya, oneContent, 1, threeContent, 2, backward);
 
         const { text } = muya.editor.clipboard.getClipboardData();
 
         expect(text).toBe('- ne\n- two\n- th\n');
     });
+
+    it.each([false, true])('copies every selected nested list row (backward: %s)', (backward) => {
+        const markdown = '- 所有case重新标一下理由：买了的话写在哪里买的；\n'
+            + '  - 晚上标注，明天早上回收\n'
+            + '  - 记不清就不标注\n'
+            + '- 人&id映射关系收集\n'
+            + '- 如果需求还在进行，那么记为L3；如果需求终止了，那么记为L2\n';
+        const muya = bootMuya(markdown);
+        const scrollPage = muya.editor.scrollPage!;
+        const start = scrollPage.firstContentInDescendant()!;
+        const end = scrollPage.lastContentInDescendant()!;
+        setCrossSelection(muya, start, 0, end, end.text.length, backward);
+
+        expect(muya.editor.clipboard.getClipboardData().text).toBe(markdown);
+    });
+
+    for (const marker of ['1.', '- [ ]']) {
+        it.each([false, true])(`preserves partial ${marker} list boundaries (backward: %s)`, (backward) => {
+            const muya = bootMuya(`${marker} one\n${marker} two\n${marker} three\n`);
+            const scrollPage = muya.editor.scrollPage!;
+            setCrossSelection(
+                muya,
+                scrollPage.firstContentInDescendant()!,
+                1,
+                scrollPage.lastContentInDescendant()!,
+                2,
+                backward,
+            );
+
+            const expected = marker === '1.' ? '1. ne\n1. two\n1. th\n' : '- [ ] ne\n- [ ] two\n- [ ] th\n';
+            expect(muya.editor.clipboard.getClipboardData().text).toBe(expected);
+        });
+    }
 });
 
 describe('copy within a single block-quote', () => {
-    it('truncates both boundary paragraphs, not the whole quote', () => {
+    it.each([false, true])('truncates both boundary paragraphs, not the whole quote (backward: %s)', (backward) => {
         const muya = bootMuya('> alpha\n>\n> beta\n');
         const scrollPage = muya.editor.scrollPage!;
 
@@ -84,7 +117,7 @@ describe('copy within a single block-quote', () => {
         const betaContent = scrollPage.lastContentInDescendant()!;
 
         // after "al" in "alpha" to after "be" in "beta"
-        stubCrossSelection(muya, alphaContent, 2, betaContent, 2);
+        setCrossSelection(muya, alphaContent, 2, betaContent, 2, backward);
 
         const { text } = muya.editor.clipboard.getClipboardData();
 

@@ -6,6 +6,7 @@ import type { ISelection } from '../selection/types';
 import type { TState } from '../state/types';
 import type { Nullable } from '../types';
 import type Clipboard from './index';
+import { SelectionDirection } from '../selection/types';
 import StateToMarkdown from '../state/stateToMarkdown';
 import { getClipBoardHtml, getSanitizeClipboardHtml } from '../utils/marked';
 import { CopyType } from './types';
@@ -85,7 +86,11 @@ function resolveSelectionOrder(
     if (anchorOutMostBlockOffset == null || focusOutMostBlockOffset == null)
         return null;
 
-    const anchorFirst = anchorOutMostBlockOffset <= focusOutMostBlockOffset;
+    // Endpoints in one list/quote have the same outmost offset. Use the
+    // selection direction there so a backward range keeps its middle children.
+    const anchorFirst = anchorOutMostBlock === focusOutMostBlock
+        ? selection.direction !== SelectionDirection.BACKWARD
+        : anchorOutMostBlockOffset < focusOutMostBlockOffset;
 
     return {
         anchorBlock,
