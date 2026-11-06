@@ -31,6 +31,13 @@ and verifies the saved file. It also checks that a fresh blank-area click still
 creates/reuses an empty paragraph. Do not substitute a programmatic range: the
 regression depends on the container `click` Chromium emits after the drag.
 
+`delete-selection-caret.spec.ts` selects the last line with Shift+ArrowLeft,
+deletes it, then checks the caret, the next typed character and the saved file in
+paragraphs, lists, quotes and code. Deleting a final line can leave a native DOM
+selection on an element boundary; that child index must be converted to a text
+offset. Muya's matching E2E spec covers both delete keys, selection directions,
+headings, table cells and cross-block selections.
+
 ## Selected-line indentation
 
 `selected-line-indent-input.spec.ts` uses real mouse drags and Tab/Shift+Tab.
