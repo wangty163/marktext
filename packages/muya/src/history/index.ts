@@ -16,6 +16,9 @@ interface IOptions {
 interface IOperation {
     operation: JSONOpList;
     selection: Nullable<IHistorySelection>;
+    // Missing on histories saved by older versions. New entries carry both
+    // endpoints so navigating before undo/redo cannot change the return caret.
+    selectionAfter?: Nullable<IHistorySelection>;
     // A `rebuild` entry is applied on undo/redo by dispatching its op to the
     // authoritative json state and rebuilding the live block tree wholesale
     // (ScrollPage.updateState) — NOT through `Editor.updateContents`'
@@ -35,9 +38,8 @@ interface IStack {
 
 // A JSON-serializable view of an ISelection. The live endpoint `block`
 // references are dropped — they are an in-memory optimization only.
-// `Selection._setCursor` re-resolves the target block from each endpoint's
-// `path` via `scrollPage.queryBlock(path)` when no block instance is present,
-// so a path-only selection restores the caret losslessly.
+// `Editor._restoreSelection` resolves each endpoint's path in the current
+// block tree, so a snapshot remains valid after undo has replaced those blocks.
 type ISerializableAnchorFocusInfo = Pick<IAnchorFocusInfo, 'offset' | 'path'>;
 
 interface ISerializableSelection {
@@ -52,6 +54,7 @@ interface ISerializableSelection {
 interface ISerializableOperation {
     operation: JSONOpList;
     selection: Nullable<ISerializableSelection>;
+    selectionAfter?: Nullable<ISerializableSelection>;
     rebuild?: boolean;
 }
 
@@ -108,6 +111,7 @@ class History {
     private _lastRecorded: number = 0;
     private _lastInputKind: Nullable<TInputKind> = null;
     private _ignoreChange: boolean = false;
+    private _composing: boolean = false;
     private _selectionStack: (Nullable<IHistorySelection>)[] = [];
     private _stack: IStack = {
         undo: [],
@@ -123,6 +127,36 @@ class History {
     }
 
     private _listen() {
+        const { eventCenter, domNode } = this._muya;
+        // Selection changes before a model mutation describe the next edit's
+        // starting point. Once edits are queued, setCursor describes their
+        // result instead and must not overwrite that starting snapshot.
+        eventCenter.on('selection-change', () => this._rememberSelection());
+
+        const capture = () => {
+            if (this._ignoreChange || this._composing || !this._muya.hasFocus())
+                return;
+            // Finish the preceding edit before another key/pointer action can
+            // move its native selection. Typing still coalesces in _record.
+            this._muya.editor.jsonState.flush();
+            this._rememberSelection();
+        };
+        for (const type of ['keydown', 'beforeinput', 'mousedown'])
+            eventCenter.attachDOMEvent(domNode, type, capture, true);
+        for (const type of ['cut', 'paste'])
+            eventCenter.attachDOMEvent(document, type, capture, true);
+        eventCenter.attachDOMEvent(domNode, 'compositionstart', () => {
+            capture();
+            this._composing = true;
+        }, true);
+        eventCenter.attachDOMEvent(domNode, 'compositionend', () => {
+            // The block commits the IME text later in this same event dispatch.
+            // Keep its original selection through caret-anchor cleanup too.
+            queueMicrotask(() => {
+                this._composing = false;
+            });
+        }, true);
+
         this._muya.eventCenter.on(
             'json-change',
             ({
@@ -167,7 +201,7 @@ class History {
         if (this._stack[source].length === 0)
             return;
 
-        const { operation, selection, rebuild } = this._stack[source].pop()!;
+        const { operation, selection, selectionAfter, rebuild } = this._stack[source].pop()!;
         const inverseOperation = json1.type.invertWithDoc(
             operation,
             asDoc(this._muya.editor.jsonState.getState()),
@@ -175,7 +209,8 @@ class History {
 
         this._stack[dest].push({
             operation: inverseOperation as JSONOpList,
-            selection: this._selection.getSelection(),
+            selection: selectionAfter === undefined ? this._snapshotSelection() : selectionAfter,
+            selectionAfter: selection,
             rebuild,
         });
 
@@ -191,14 +226,17 @@ class History {
             this._ignoreChange = false;
         }
 
-        this._getLastSelection();
+        this._rememberSelection();
     }
 
     clear() {
         this._stack = { undo: [], redo: [] };
         this._selectionStack = [];
         this._lastRecorded = 0;
+        this._lastInputKind = null;
         this._ignoreChange = false;
+        this._composing = false;
+        this._rememberSelection();
     }
 
     getHistory(): ISerializedHistory {
@@ -229,6 +267,9 @@ class History {
         return {
             operation: deepClone(op.operation),
             selection: this._toSerializableSelection(op.selection),
+            ...(op.selectionAfter !== undefined
+                ? { selectionAfter: this._toSerializableSelection(op.selectionAfter) }
+                : {}),
             ...(op.rebuild ? { rebuild: true } : {}),
         };
     }
@@ -237,6 +278,9 @@ class History {
         return {
             operation: deepClone(op.operation),
             selection: this._fromSerializableSelection(op.selection),
+            ...(op.selectionAfter !== undefined
+                ? { selectionAfter: this._fromSerializableSelection(op.selectionAfter) }
+                : {}),
             ...(op.rebuild ? { rebuild: true } : {}),
         };
     }
@@ -260,7 +304,7 @@ class History {
 
     // Rebuild a selection without live block references. The block instances
     // are intentionally omitted: the only consumers of a restored selection
-    // are `editor.updateContents` and `selection._setCursor`, both of which
+    // are `editor.updateContents` and `editor.rebuildContents`, both of which
     // re-resolve the target block from each endpoint's `path` via
     // `scrollPage.queryBlock` when no block instance is present. The return
     // type is `IHistorySelection`, whose endpoint `block` references are
@@ -295,8 +339,32 @@ class History {
         this._lastInputKind = kind;
     }
 
+    private _snapshotSelection(): Nullable<IHistorySelection> {
+        const selection = this._selection.getSelection();
+        if (selection && (selection.anchor.block.muya !== this._muya || selection.focus.block.muya !== this._muya))
+            return null;
+        return this._toSerializableSelection(selection);
+    }
+
+    private _rememberSelection() {
+        if (this._ignoreChange || this._composing || this._muya.editor.jsonState.hasPendingOperations)
+            return;
+        const selection = this._snapshotSelection();
+        const previous = this._selectionStack.at(-1);
+        if (previous && selection && (['anchor', 'focus'] as const).some((endpoint) => {
+            const before = previous[endpoint];
+            const after = selection[endpoint];
+            return before.offset !== after.offset
+                || before.path.length !== after.path.length
+                || before.path.some((part, index) => part !== after.path[index]);
+        })) {
+            this.cutoff();
+        }
+        this._selectionStack = [selection];
+    }
+
     private _getLastSelection() {
-        this._selectionStack.push(this._selection.getSelection());
+        this._selectionStack.push(this._snapshotSelection());
 
         if (this._selectionStack.length > 2)
             this._selectionStack.shift();
@@ -329,7 +397,11 @@ class History {
         if (!undoOperation || undoOperation.length === 0)
             return;
 
-        this._stack.undo.push({ operation: undoOperation, selection });
+        this._stack.undo.push({
+            operation: undoOperation,
+            selection,
+            selectionAfter: this._selectionStack.at(-1) ?? null,
+        });
 
         if (this._stack.undo.length > this._options.maxStack)
             this._stack.undo.shift();

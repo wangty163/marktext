@@ -38,6 +38,13 @@ selection on an element boundary; that child index must be converted to a text
 offset. Muya's matching E2E spec covers both delete keys, selection directions,
 headings, table cells and cross-block selections.
 
+`undo-selection-caret.spec.ts` deletes a reverse selection, moves the caret,
+then invokes native Undo/Redo shortcuts. It verifies the original range and its
+direction, the edit-end caret on redo, and a subsequent replacement saved to
+disk. Muya's history snapshots must retain both positions when serialized for
+tab switching; a selection captured only after editing cannot restore the first
+edit's starting position.
+
 ## Selected-line indentation
 
 `selected-line-indent-input.spec.ts` uses real mouse drags and Tab/Shift+Tab.

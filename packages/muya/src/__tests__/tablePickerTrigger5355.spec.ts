@@ -66,6 +66,17 @@ function openGridFromSlashLine(muya: Muya): { trigger: Parent; pick: TPick } {
     return { trigger, pick: openGrid(muya, trigger) };
 }
 
+// Older saved histories store no selection for the first edit, so undoing it
+// leaves the caret on the line it removed.
+function undoWithoutSavedSelection(muya: Muya) {
+    const history = muya.getHistory();
+    expect(history.stack.undo).toHaveLength(1);
+    history.stack.undo[0].selection = null;
+    delete history.stack.undo[0].selectionAfter;
+    muya.setHistory(history);
+    muya.undo();
+}
+
 function pickAndFlush(muya: Muya, pick: TPick) {
     pick(1, 1);
     muya.editor.jsonState.flush();
@@ -107,7 +118,7 @@ describe('table grid pick (#5355)', () => {
     it('changes nothing, caret included, once undo removed the line that opened the grid', () => {
         const muya = bootMuya('Hello\n\nWorld\n');
         const { pick } = openGridFromSlashLine(muya);
-        muya.undo();
+        undoWithoutSavedSelection(muya);
         expect(muya.editor.activeContentBlock?.outMostBlock).toBeNull();
         const before = caretOf(muya);
 
@@ -120,8 +131,8 @@ describe('table grid pick (#5355)', () => {
     it('leaves the caret alone when the pick is ignored and the caret is elsewhere in the document', () => {
         const muya = bootMuya('Hello\n\nWorld\n');
         const { pick } = openGridFromSlashLine(muya);
-        contentWithText(muya, 'World').setCursor(2, 2, true);
         muya.undo();
+        contentWithText(muya, 'World').setCursor(2, 2, true);
         const before = caretOf(muya);
 
         pickAndFlush(muya, pick);

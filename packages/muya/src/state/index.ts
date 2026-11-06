@@ -44,6 +44,10 @@ class JSONState {
 
     private _operationCache: JSONOpList[] = [];
 
+    get hasPendingOperations() {
+        return this._operationCache.length > 0;
+    }
+
     // Handle of the scheduled deferred-op flush. Doubles as the "a flush is
     // already scheduled" guard (non-null ⇒ batching in progress), and lets
     // `setContent` cancel a pending batch that belongs to the outgoing

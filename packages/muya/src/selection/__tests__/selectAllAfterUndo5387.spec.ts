@@ -4,9 +4,9 @@ import type Content from '../../block/base/content';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Muya } from '../../muya';
 
-// Undoing the first edit after the document loads restores no caret, so when
-// that undo removes the paragraph holding the caret, the cached selection keeps
-// pointing at the removed block (#5387).
+// Older saved histories contain a null selection for the first edit. Undoing
+// one can leave the cached selection pointing at a removed block (#5387), even
+// though newly recorded edits now preserve their initial selection.
 
 const bootedMuyas: Muya[] = [];
 
@@ -35,8 +35,11 @@ function undoNewParagraphAfter(muya: Muya, text: string): void {
     leaf.setCursor(text.length, text.length, true);
     muya.insertParagraph('after', 'b');
     muya.editor.jsonState.flush();
-    // @ts-expect-error reach into the private stack to pin the precondition.
-    expect(muya.editor.history._stack.undo.map(entry => entry.selection)).toEqual([null]);
+    const history = muya.getHistory();
+    expect(history.stack.undo).toHaveLength(1);
+    history.stack.undo[0].selection = null;
+    delete history.stack.undo[0].selectionAfter;
+    muya.setHistory(history);
     muya.undo();
     expect(muya.editor.selection.anchorBlock?.outMostBlock).toBeNull();
 }
