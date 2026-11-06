@@ -25,7 +25,10 @@
             class="save-dot"
             :class="{ show: !isSaved }"
           />
-          <span class="path">
+          <span
+            class="path"
+            @contextmenu.stop.prevent="copyPath"
+          >
             <bdi dir="ltr">
               <span
                 v-for="(path, index) of paths"
@@ -192,6 +195,7 @@ import { useEditorStore } from '@/store/editor'
 import { useI18n } from 'vue-i18n'
 import { ArrowRight } from '@element-plus/icons-vue'
 import type { FileWordCount } from '@shared/types/files'
+import { popupContextMenu } from '@/contextMenu/popupMenu'
 
 interface ProjectInfo {
   name?: string
@@ -342,6 +346,22 @@ const rename = () => {
   }
 }
 
+const copyPath = (event: MouseEvent): void => {
+  const pathname = props.pathname
+  if (!pathname) return
+
+  popupContextMenu(
+    [
+      {
+        id: 'copyPath',
+        label: t('contextMenu.tabs.copyPath'),
+        click: () => window.electron.clipboard.writeText(pathname)
+      }
+    ],
+    { x: event.clientX, y: event.clientY }
+  )
+}
+
 const onMaximize = () => {
   isMaximized.value = true
 }
@@ -436,6 +456,7 @@ div.title > span {
    so the filename stays visible. The save dot is a sibling rather than a child
    so that clipping can never swallow it. */
 div.title > span > .path {
+  -webkit-app-region: no-drag;
   direction: rtl;
   overflow: hidden;
   text-overflow: clip;
