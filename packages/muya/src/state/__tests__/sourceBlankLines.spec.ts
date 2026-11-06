@@ -64,6 +64,18 @@ describe('source blank lines in line-break-preserving mode', () => {
         expect(parse(serialize(states))).toEqual(states);
     });
 
+    it('keeps adjacent plain-text source lines in one paragraph', () => {
+        const markdown = [
+            'ase_effective_ratio  = 100',
+            'ase_usertag_allowlist = -1',
+            'aseCustomParam = luir_ase_replace_v1',
+            '',
+        ].join('\n');
+        const states = parse(markdown);
+        expect(states).toEqual([{ name: 'paragraph', text: markdown.slice(0, -1) }]);
+        expect(serialize(states)).toBe(markdown);
+    });
+
     it.each([
         '# title\n',
         'title\n===\n',
