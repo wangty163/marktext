@@ -84,6 +84,21 @@ describe('source-preserving extra list indentation', () => {
     });
 });
 
+describe('paragraph line breaks after a list', () => {
+    it.each(['- item\n', '1. item\n', '- [ ] item\n'])(
+        'does not add a second separator when the paragraph starts with a newline after %j',
+        (listMarkdown) => {
+            const list = parseMarkdown(listMarkdown);
+            const serialize = (text: string) => new ExportMarkdown({
+                listIndentation: 1,
+                preserveParagraphLineBreaks: true,
+            }).generate([...list, { name: 'paragraph', text }]);
+            expect(serialize('\n')).toBe(`${listMarkdown}\n\n`);
+            expect(serialize('\nprose')).toBe(`${listMarkdown}\nprose\n`);
+        },
+    );
+});
+
 function parseMarkdown(md: string): TState[] {
     return new MarkdownToState({
         footnote: false,

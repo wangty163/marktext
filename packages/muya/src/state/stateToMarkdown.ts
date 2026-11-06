@@ -163,8 +163,10 @@ export default class ExportMarkdown {
             return true;
         if (state.name === 'code-block' && state.meta.type === 'indented')
             return ['paragraph', 'code-block'].includes(previous.name) || isAnyListState(previous);
-        if (state.name === 'paragraph')
-            return isAnyListState(previous) || ['block-quote', 'table'].includes(previous.name);
+        if (state.name === 'paragraph') {
+            return !state.text.startsWith('\n')
+                && (isAnyListState(previous) || ['block-quote', 'table'].includes(previous.name));
+        }
         if (previous.name !== 'paragraph')
             return false;
         if (['setext-heading', 'table', 'html-block'].includes(state.name))

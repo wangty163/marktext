@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { expect, test } from '@playwright/test'
 import type { Page } from 'playwright'
 import {
-  launchWithMarkdown, launchElectron, paragraphText, placeCaretInEditor, saveWithKeyboard,
+  launchWithMarkdown, launchElectron, paragraphText, placeCaretAtOffset, placeCaretInEditor, saveWithKeyboard,
   waitForEditor, sendIpcToRenderer
 } from './helpers'
 import { closeTestApplication, terminateTestApplication } from './appLifecycle'
@@ -15,6 +15,34 @@ const lineStart = process.platform === 'darwin' ? 'Meta+ArrowLeft' : 'Home'
 const flushInput = (page: Page) => page.evaluate(() => new Promise<void>(resolve =>
   requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
 ))
+
+test('two Enter presses leave a blank line after an empty list item', async() => {
+  const launched = await launchWithMarkdown('- item\n- \n')
+  let { app, page } = launched
+  const { filePath } = launched
+  try {
+    await placeCaretAtOffset(page, 0, 1)
+    await page.keyboard.press('Enter')
+    await expect(page.locator('.mu-list-item')).toHaveCount(1)
+    await page.keyboard.press('Enter')
+    await page.keyboard.type('prose')
+    await expect.poll(() => paragraphText(page, 1)).toBe('\nprose')
+    await saveWithKeyboard(app)
+    await expect.poll(() => fs.readFileSync(filePath, 'utf8')).toBe('- item\n\nprose\n')
+    await closeTestApplication(app)
+
+    const reopened = await launchElectron([filePath])
+    app = reopened.app
+    page = reopened.page
+    await waitForEditor(page)
+    await expect(page.locator('.mu-list-item')).toHaveCount(1)
+    await expect.poll(() => fs.readFileSync(filePath, 'utf8')).toBe('- item\n\nprose\n')
+    await closeTestApplication(app)
+  } catch (error) {
+    terminateTestApplication(app)
+    throw error
+  }
+})
 
 test('Enter creates consecutive lines in the editor, saved file and reopened document', async() => {
   const launched = await launchWithMarkdown('alpha\n')
