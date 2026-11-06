@@ -245,3 +245,72 @@ describe('enter on an imported list gap', () => {
         expect(muya.getMarkdown()).toBe('- outer\n  - middle\n    - inner\n\n- next\n');
     });
 });
+
+describe('enter on a list row with child blocks', () => {
+    const lists = [
+        { name: 'bullet', markers: ['-', '-', '-'], child: '  - child\n', indent: '  ' },
+        { name: 'ordered', markers: ['1.', '2.', '3.'], child: '   1. child\n', indent: '   ' },
+        { name: 'task', markers: ['- [ ]', '- [ ]', '- [ ]'], child: '  - [ ] child\n', indent: '  ' },
+    ];
+
+    for (const { name, markers, child, indent } of lists) {
+        for (const { tail, label } of [
+            { tail: child, label: 'child list' },
+            { tail: `\n${indent}continuation\n`, label: 'continuation' },
+        ]) {
+            it.each([0, 2])(`splits a ${name} row at %i and keeps its ${label}`, async (offset) => {
+                const markdown = `${markers[0]} alpha\n${tail}${markers[1]} beta\n`;
+                const muya = bootMuya(markdown);
+                const original = muya.getState();
+                const content = contentByText(muya, 'alpha');
+
+                enterAt(muya, content, offset);
+                await flush();
+
+                const expected = `${markers[0]} ${'alpha'.slice(0, offset)}\n${markers[1]} ${'alpha'.slice(offset)}\n${tail}${markers[2]} beta\n`;
+                expect(muya.getMarkdown()).toBe(expected);
+                const list = muya.getState()[0] as { children: { children: unknown[] }[] };
+                const originalList = original[0] as typeof list;
+                expect(list.children).toHaveLength(3);
+                expect(list.children[0].children).toEqual([
+                    { name: 'paragraph', text: 'alpha'.slice(0, offset) },
+                ]);
+                expect(list.children[1].children).toEqual([
+                    { name: 'paragraph', text: 'alpha'.slice(offset) },
+                    ...originalList.children[0].children.slice(1),
+                ]);
+                expect(muya.editor.activeContentBlock?.getCursor()?.start.offset).toBe(0);
+
+                muya.undo();
+                await flush();
+                expect(muya.getState()).toEqual(original);
+                expect(muya.getMarkdown()).toBe(markdown);
+                expect(muya.editor.activeContentBlock?.getCursor()?.start.offset).toBe(offset);
+
+                muya.redo();
+                await flush();
+                expect(muya.getMarkdown()).toBe(expected);
+                expect(muya.editor.activeContentBlock?.getCursor()?.start.offset).toBe(0);
+                muya.setContent(expected);
+                expect(muya.getMarkdown()).toBe(expected);
+            });
+        }
+
+        it(`keeps a paragraph inserted at the end of a ${name} row with a continuation inside that item`, async () => {
+            const muya = bootMuya(`${markers[0]} alpha\n\n${indent}continuation\n${markers[1]} beta\n`);
+            const content = contentByText(muya, 'alpha');
+            enterAt(muya, content, content.text.length);
+            await flush();
+
+            const list = muya.getState()[0] as { children: { children: unknown[] }[] };
+            expect(list.children).toHaveLength(2);
+            expect(list.children[0].children).toEqual([
+                { name: 'paragraph', text: 'alpha' },
+                { name: 'paragraph', text: '' },
+                { name: 'paragraph', text: '' },
+                { name: 'paragraph', text: 'continuation' },
+            ]);
+            expect(muya.editor.activeContentBlock?.text).toBe('');
+        });
+    }
+});

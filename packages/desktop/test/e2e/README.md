@@ -44,6 +44,17 @@ Undo/Redo and the saved file. `selected-line-indent.spec.ts` checks identical
 saved Markdown in source and WYSIWYG modes. Source-preserving list items retain
 extra marker indentation instead of flattening it during import/export.
 
+## Enter in list rows
+
+`list-enter-split.spec.ts` compares Enter at the start of a parent row with a
+child list and a later plain row, for bullet, ordered and task lists. It checks
+the list markers, child ownership, Undo/Redo, subsequent typing, and the saved
+and reopened document. A list item's first paragraph owns its marker regardless
+of how many other blocks the item contains; splitting its remaining text must
+carry its following blocks into the new item. Later continuation paragraphs
+retain their paragraph behavior. Enter at the end of a multi-block item still
+enters its child list or inserts a continuation paragraph.
+
 ## Runs never take over the machine
 
 Playwright cannot start Electron headless, so a plain run puts a real window on the

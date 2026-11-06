@@ -612,7 +612,10 @@ class ParagraphContent extends Format {
             }
         }
         else {
-            if (parent!.isOnlyChild()) {
+            // Splitting the marker-bearing paragraph must split the item even
+            // when it has child blocks. With no text below the caret, a multi-
+            // block item keeps its existing continuation behavior instead.
+            if (parent!.isOnlyChild() || (parent!.isFirstChild() && end.offset < text.length)) {
                 this.text = text.substring(0, start.offset);
                 const paragraphChild: IParagraphState = {
                     name: 'paragraph',
@@ -622,6 +625,12 @@ class ParagraphContent extends Format {
                     = listItem.blockName === 'task-list-item'
                         ? { name: 'task-list-item', meta: { checked: false }, children: [paragraphChild] }
                         : { name: 'list-item', children: [paragraphChild] };
+
+                listItem.forEachAt(1, undefined, (node) => {
+                    if (node.isParent())
+                        newNodeState.children.push(node.getState());
+                    node.remove();
+                });
 
                 const newListItem = ScrollPage.loadBlock(newNodeState.name).create(
                     muya,
