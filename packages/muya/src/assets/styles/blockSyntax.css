@@ -416,7 +416,7 @@ span.mu-language-input {
    indentation mirrors correctly under `dir="rtl"` (#4673) */
 ol.mu-order-list,
 ul.mu-bullet-list {
-    padding-inline-start: 30px;
+    padding-inline-start: var(--list-indent);
 }
 
 ol.mu-order-list {
@@ -464,6 +464,16 @@ ol.mu-order-list ol.mu-order-list ul.mu-bullet-list {
     list-style-type: square;
 }
 
+/* An extra source-indent level has no synthetic empty parent in the DOM,
+   so advance its bullet marker explicitly (disc → circle → square). */
+ul.mu-bullet-list > li.mu-extra-indent-bullet {
+    list-style-type: circle;
+}
+
+li ul.mu-bullet-list > li.mu-extra-indent-bullet {
+    list-style-type: square;
+}
+
 /* Focus mode (mirrors marktext muyajs `.ag-focus-mode`): when the editor
    container carries `mu-focus-mode`, dim every top-level block and restore full
    opacity on the active one. `mu-active` is applied to the whole ancestor chain
@@ -487,7 +497,7 @@ ol.mu-order-list ol.mu-order-list ul.mu-bullet-list {
 
 /* task list */
 ul.mu-task-list {
-    padding-inline-start: 30px;
+    padding-inline-start: var(--list-indent);
 }
 
 li.mu-task-list-item {

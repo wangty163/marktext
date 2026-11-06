@@ -641,6 +641,8 @@ export default class ExportMarkdown {
         indent: string,
     ) {
         const result = [];
+        if (this._preserveParagraphLineBreaks)
+            indent += ' '.repeat(state.meta?.extraIndent ?? 0);
         const listInfo = this._listType[this._listType.length - 1];
         // `listInfo` is one of three list-meta shapes (bullet / order / task).
         // bullet & task carry `marker`; order carries `delimiter` + `start`.

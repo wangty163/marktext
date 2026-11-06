@@ -13,7 +13,8 @@ import { usePreferencesStore } from '@/store/preferences'
 import { findMarkdownHeadingLine, flashSourceLine, scrollSourceEditorToLine } from '@/util/sourceModeToc'
 import { storeToRefs } from 'pinia'
 import codeMirror, { setCursorAtFirstLine, setTextDirection } from '../../codeMirror'
-import { wordCount as getWordCount } from '@muyajs/core'
+import { indentMarkdownSelection, wordCount as getWordCount } from '@muyajs/core'
+import type { MarkdownIndentDirection } from '@muyajs/core'
 import { adjustCursor } from '../../util'
 import bus from '../../bus'
 import { oneDarkThemes, railscastsThemes } from '@/config'
@@ -54,6 +55,10 @@ const {
   theme,
   effectiveSourceCode: sourceCode,
   sourceCodeLineNumbers,
+  tabSize,
+  listIndentation,
+  trimUnnecessaryCodeBlockEmptyLines,
+  footnote,
   texMathDollars,
   texMathGfm,
   texMathSingleBackslash,
@@ -77,6 +82,11 @@ watch(
 
 watch(sourceCodeLineNumbers, (value) => {
   editor.value?.setOption('lineNumbers', value)
+})
+
+watch(tabSize, (value) => {
+  editor.value?.setOption('tabSize', value)
+  editor.value?.setOption('indentUnit', value)
 })
 
 // A fresh instance reads these at mount; the watch is for a preference changed
@@ -393,6 +403,44 @@ const handleScrollToHeader = (slug: unknown) => {
   clearTocHighlight = flashSourceLine(editor.value, line)
 }
 
+const handleSelectionIndent = (cm: CMInstance, direction: MarkdownIndentDirection) => {
+  // Muya has one text range. Preserve CodeMirror's native multi-cursor
+  // behavior instead of collapsing secondary selections into the primary one.
+  if (!cm.somethingSelected() || cm.listSelections().length !== 1) return codeMirror.Pass
+
+  const result = indentMarkdownSelection(
+    cm.getValue(),
+    { anchor: cm.getCursor('anchor'), focus: cm.getCursor('head') },
+    direction,
+    {
+      tabSize: tabSize.value,
+      listIndentation: listIndentation.value,
+      preserveParagraphLineBreaks: true,
+      trimUnnecessaryCodeBlockEmptyLines: trimUnnecessaryCodeBlockEmptyLines.value,
+      footnote: footnote.value,
+      texMathDollars: texMathDollars.value,
+      texMathGfm: texMathGfm.value,
+      texMathSingleBackslash: texMathSingleBackslash.value,
+      texMathDoubleBackslash: texMathDoubleBackslash.value
+    }
+  )
+  if (!result) return codeMirror.Pass
+
+  cm.operation(() => {
+    if (result.markdown !== cm.getValue()) {
+      const lastLine = cm.lastLine()
+      cm.replaceRange(
+        result.markdown,
+        { line: cm.firstLine(), ch: 0 },
+        { line: lastLine, ch: cm.getLine(lastLine).length },
+        '+input'
+      )
+    }
+    cm.setSelection(result.cursor.anchor, result.cursor.focus, { scroll: true })
+  })
+  return true
+}
+
 onMounted(() => {
   if (!currentTab.value) return
   const { id } = currentTab.value
@@ -412,7 +460,14 @@ onMounted(() => {
     lineWrapping: true,
     styleActiveLine: true,
     direction: textDirection,
-    viewportMargin: Infinity
+    tabSize: tabSize.value,
+    indentUnit: tabSize.value,
+    indentWithTabs: false,
+    viewportMargin: Infinity,
+    extraKeys: {
+      Tab: (cm: CMInstance) => handleSelectionIndent(cm, 'add'),
+      'Shift-Tab': (cm: CMInstance) => handleSelectionIndent(cm, 'subtract')
+    }
   }
 
   if (railscastsThemes.includes(theme.value)) {

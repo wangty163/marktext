@@ -31,6 +31,19 @@ and verifies the saved file. It also checks that a fresh blank-area click still
 creates/reuses an empty paragraph. Do not substitute a programmatic range: the
 regression depends on the container `click` Chromium emits after the drag.
 
+## Selected-line indentation
+
+`selected-line-indent-input.spec.ts` uses real mouse drags and Tab/Shift+Tab.
+Every touched list row moves one level, including a first nested child with no
+previous sibling; it is not left behind as an anchor. Only lines touched by the
+selection change: unselected descendants keep their source columns and screen
+positions, even if Markdown parsing changes their list owner. A zero-column end
+endpoint excludes that line. The screenshot regression checks selected rows move
+one level and all unselected rows stay put, along with selection retention,
+Undo/Redo and the saved file. `selected-line-indent.spec.ts` checks identical
+saved Markdown in source and WYSIWYG modes. Source-preserving list items retain
+extra marker indentation instead of flattening it during import/export.
+
 ## Runs never take over the machine
 
 Playwright cannot start Electron headless, so a plain run puts a real window on the

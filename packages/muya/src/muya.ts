@@ -3,8 +3,9 @@ import type Parent from './block/base/parent';
 import type { TBlockPath } from './block/types';
 import type { Listener } from './event/types';
 import type { ILocale } from './i18n/types';
+import type { MarkdownIndentDirection } from './selection/markdownIndentation';
 import type { IIndexCursor } from './selection/offsetCursor';
-import type { IHistorySelection, IPublicCursorInput } from './selection/types';
+import type { IAnchorFocusInfo, IHistorySelection, IPublicCursorInput } from './selection/types';
 import type { ITocItem } from './state/getTOC';
 import type { IBulletListState, IOrderListState, ITableState, ITaskListState, TState } from './state/types';
 import type { IMuyaOptions, Nullable } from './types';
@@ -22,6 +23,7 @@ import {
 import { Editor } from './editor/index';
 import EventCenter from './event/index';
 import I18n from './i18n/index';
+import { indentMarkdownSelection } from './selection/markdownIndentation';
 import {
     injectSentinels,
     injectStateSentinels,
@@ -307,9 +309,17 @@ export class Muya {
      * back the caret captured when the user switched INTO source mode. Omitted,
      * it falls back to the current live selection.
      *
+     * `restoreSelection` controls the live selection applied during the rebuild.
+     * Pass `false` when the caller will install a source-mapped selection after
+     * the rebuild; the undo boundary still records the pre-replacement range.
+     *
      * @returns `true` if a boundary was recorded, `false` if nothing changed.
      */
-    replaceContent(content: TState[] | string, recordSelection?: Nullable<IHistorySelection>): boolean {
+    replaceContent(
+        content: TState[] | string,
+        recordSelection?: Nullable<IHistorySelection>,
+        restoreSelection = true,
+    ): boolean {
         const { jsonState, history } = this.editor;
         const { op, prevState } = jsonState.buildReplaceOp(content);
 
@@ -324,7 +334,7 @@ export class Muya {
         // so suppress History's own recording of it to avoid a duplicate entry.
         history.recordRebuild(op, prevState, boundarySelection);
         history.suppressRecording(() => {
-            this.editor.rebuildContents(op, selection, 'api');
+            this.editor.rebuildContents(op, restoreSelection ? selection : null, 'api');
         });
 
         return true;
@@ -1142,7 +1152,10 @@ export class Muya {
      * `false`) when the cursor is stale / unresolvable, letting the caller fall
      * back to its default.
      */
-    setCursorByOffset(indexCursor: IIndexCursor): boolean {
+    setCursorByOffset(
+        indexCursor: IIndexCursor,
+        options: { preserveViewport?: boolean; restoreViewport?: () => void } = {},
+    ): boolean {
         const { scrollPage } = this.editor;
         if (!scrollPage)
             return false;
@@ -1160,11 +1173,19 @@ export class Muya {
         const cursor = resolveSentinelCursor(this.editor.scrollPage!);
         this.editor.setContent(cleanMarkdown);
         this.setHistory(savedHistory);
+        options.restoreViewport?.();
 
         if (!cursor)
             return false;
 
+        if (options.preserveViewport)
+            this.editor.selection.preserveViewportOnce();
         this.setCursor(cursor);
+        if (options.preserveViewport)
+            this.editor.selection.consumePreserveViewport();
+        // Native Range selection can itself scroll the container. Re-apply
+        // after the final range is installed as well as before it.
+        options.restoreViewport?.();
 
         return true;
     }
@@ -1189,17 +1210,87 @@ export class Muya {
         if (!selection)
             return null;
 
+        // StateToMarkdown canonicalizes an ATX heading from its first `#`.
+        // A sentinel injected before that marker would therefore disappear and
+        // collapse a cross-block range onto its other endpoint. Move endpoints
+        // inside the heading marker just past it, then restore their original
+        // source columns after locating the sentinels.
+        const corrections = { anchor: 0, focus: 0 };
+        const outsideHeadingMarker = (endpoint: IAnchorFocusInfo, kind: 'anchor' | 'focus') => {
+            if (endpoint.block.blockName !== 'atxheading.content')
+                return endpoint;
+            const markerLength = /^#{1,6} /.exec(endpoint.block.text)?.[0].length ?? 0;
+            if (endpoint.offset >= markerLength)
+                return endpoint;
+
+            corrections[kind] = markerLength - endpoint.offset;
+            return { ...endpoint, offset: markerLength };
+        };
+        const sentinelSelection = {
+            ...selection,
+            anchor: outsideHeadingMarker(selection.anchor, 'anchor'),
+            focus: outsideHeadingMarker(selection.focus, 'focus'),
+        };
         const sentinelState = injectStateSentinels(
             this.editor.jsonState.getState(),
-            selection,
+            sentinelSelection,
         );
         if (!sentinelState)
             return null;
 
         const sentinelMarkdown
             = this.editor.jsonState.getMarkdownFromState(sentinelState);
+        const cursor = locateSentinelOffsets(sentinelMarkdown);
+        if (!cursor)
+            return null;
 
-        return locateSentinelOffsets(sentinelMarkdown);
+        const restore = (position: IIndexCursor['anchor'], correction: number) => position
+            ? { line: position.line, ch: Math.max(0, position.ch - correction) }
+            : position;
+        return {
+            anchor: restore(cursor.anchor, corrections.anchor),
+            focus: restore(cursor.focus, corrections.focus),
+        };
+    }
+
+    /**
+     * Indent the source lines touched by the current text selection as one
+     * undoable edit. Source mode calls the same pure transformation, so both
+     * views write identical Markdown instead of maintaining separate list and
+     * paragraph indentation behavior.
+     */
+    indentSelection(direction: MarkdownIndentDirection): boolean {
+        this.flush();
+        const selection = this.editor.selection.getSelection();
+        if (!selection || selection.isCollapsed)
+            return false;
+
+        const cursor = this.getCursorOffset();
+        if (!cursor?.anchor || !cursor.focus)
+            return false;
+
+        const markdown = this.getMarkdown();
+        const result = indentMarkdownSelection(markdown, cursor, direction, this.options);
+        if (!result || result.markdown === markdown)
+            return false;
+
+        const { scrollTop, scrollLeft } = this.domNode;
+        if (!this.replaceContent(result.markdown, selection, false))
+            return false;
+
+        // Restore by source coordinates because indentation can change the
+        // block type (for example, four leading spaces create a code block).
+        // Skip the invalid pre-indent selection during the rebuild, then keep
+        // both the viewport and the final range stable. In particular, this
+        // programmatic restore must not trigger typewriter recentering.
+        this.setCursorByOffset(result.cursor, {
+            preserveViewport: true,
+            restoreViewport: () => {
+                this.domNode.scrollTop = scrollTop;
+                this.domNode.scrollLeft = scrollLeft;
+            },
+        });
+        return true;
     }
 
     /**

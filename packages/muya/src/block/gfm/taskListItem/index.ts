@@ -18,6 +18,8 @@ class TaskListItem extends Parent {
 
     static create(muya: Muya, state: ITaskListItemState) {
         const listItem = new TaskListItem(muya, state);
+        if (state.meta.extraIndent && listItem.domNode)
+            listItem.domNode.style.marginInlineStart = `calc(var(--list-indent) * ${state.meta.extraIndent / 2})`;
 
         listItem.appendAttachment(
             ScrollPage.loadBlock('task-list-checkbox').create(muya, state.meta),

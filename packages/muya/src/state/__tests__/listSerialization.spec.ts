@@ -60,6 +60,30 @@ describe('stateToMarkdown — empty list item serialization', () => {
     });
 });
 
+describe('source-preserving extra list indentation', () => {
+    it.each([
+        '  - first\n  - second\n',
+        '- parent\n    - first\n    - second\n  - next\n    - child\n',
+        '1. parent\n      1. first\n      2. second\n   2. next\n      1. child\n',
+        '- [ ] parent\n    - [x] first\n    - [ ] second\n  - [ ] next\n    - [x] child\n',
+    ])('retains list marker columns across repeated imports of %j', (markdown) => {
+        const parser = new MarkdownToState({
+            footnote: false,
+            texMathDollars: false,
+            texMathGfm: false,
+            texMathSingleBackslash: false,
+            texMathDoubleBackslash: false,
+            trimUnnecessaryCodeBlockEmptyLines: false,
+            frontMatter: false,
+            preserveParagraphLineBreaks: true,
+        });
+        const serializer = new ExportMarkdown({ listIndentation: 1, preserveParagraphLineBreaks: true });
+        const first = serializer.generate(parser.generate(markdown));
+        expect(first).toBe(markdown);
+        expect(serializer.generate(parser.generate(first))).toBe(markdown);
+    });
+});
+
 function parseMarkdown(md: string): TState[] {
     return new MarkdownToState({
         footnote: false,

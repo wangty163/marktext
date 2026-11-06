@@ -65,6 +65,7 @@ export interface IListItemState {
     name: 'list-item';
     meta?: {
         orderMarker?: string; // e.g. "1.", "001.", "10)"
+        extraIndent?: number; // Source indentation beyond the enclosing content column.
     };
     children: TState[];
 }
@@ -111,6 +112,7 @@ export interface ITableState {
 
 export interface ITaskListItemMeta {
     checked: boolean;
+    extraIndent?: number;
 }
 
 export interface ITaskListItemState {

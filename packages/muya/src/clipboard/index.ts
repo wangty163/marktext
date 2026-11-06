@@ -20,13 +20,16 @@ import { CopyType, PasteType } from './types';
 // Ctrl+C copy on Windows/Linux), which was previously not excluded and
 // silently deleted the selection (#3491). Mirrors the macOS metaKey guard.
 export function shouldCrossBlockCut(key: string, metaKey: boolean, ctrlKey: boolean): boolean {
-    if (/Alt|Option|Meta|Shift|CapsLock|ArrowUp|ArrowDown|ArrowLeft|ArrowRight/.test(key))
-        return false;
-
     if (metaKey || ctrlKey)
         return false;
 
-    return true;
+    if (key === 'Enter' || key === 'Backspace' || key === 'Delete')
+        return true;
+
+    // Only an actual printable character replaces a selection. Tab, Escape,
+    // navigation, function keys and IME control keys must never turn into a
+    // cut merely because a range spans several blocks.
+    return Array.from(key).length === 1;
 }
 
 class Clipboard {

@@ -312,6 +312,25 @@ export class Editor {
             const selectionResult = this.selection.getSelection();
             const anchorBlock = selectionResult?.anchor.block;
             const isSelectionInSameBlock = selectionResult?.isSelectionInSameBlock;
+            // A selected-line edit is document-wide, not an edit to whichever
+            // block happens to hold the anchor. Handle it before the same-block
+            // dispatch guard, which otherwise drops every cross-block keydown.
+            if (
+                event.type === 'keydown'
+                && isKeyboardEvent(event)
+                && event.key === EVENT_KEYS.Tab
+                && selectionResult
+                && !selectionResult.isCollapsed
+                && !anchorBlock?.isComposing
+                && !event.ctrlKey
+                && !event.metaKey
+                && !event.altKey
+            ) {
+                event.preventDefault();
+                this._muya.indentSelection(event.shiftKey ? 'subtract' : 'add');
+                return;
+            }
+
             // Fix issue that language input can not get focus when it's empty(Firefox only)
             if (
                 event.type === 'click'
@@ -446,11 +465,11 @@ export class Editor {
             // already up to date — rebuild from it instead of leaving an empty doc.
             debug.error(`updateContents incremental apply failed; rebuilding from state: ${String(error)}`);
             this.scrollPage!.updateState(this.jsonState.getState());
-            this._restoreSelection(selection, true);
+            this._restoreSelection(selection);
         }
     }
 
-    private _restoreSelection(selection: Nullable<IHistorySelection>, treeRebuilt = false) {
+    private _restoreSelection(selection: Nullable<IHistorySelection>) {
         if (!selection)
             return;
 
@@ -459,33 +478,14 @@ export class Editor {
         // so query against a copy and leave the caller's selection untouched.
         const cursorBlock = this.scrollPage?.queryBlock([...anchor.path]);
 
-        const begin = Math.min(anchor.offset, focus.offset);
-        const end = Math.max(anchor.offset, focus.offset);
-
         if (isSelectionInSameBlock && cursorBlock && cursorBlock.isContent()) {
-            cursorBlock.setCursor(begin, end, true);
+            cursorBlock.setCursor(anchor.offset, focus.offset, true);
             return;
         }
 
-        // When the tree was rebuilt wholesale (rebuildContents), the saved
-        // selection's cached `anchorBlock` / `focusBlock` reference DETACHED
-        // nodes from the previous tree — resolving them would set the native DOM
-        // range onto a detached node and crash the next `getSelection()` read.
-        // Re-resolve the caret from the (cloned) path against the fresh tree;
-        // fall back to focusing the first content block when the saved path no
-        // longer points at a content leaf (e.g. a paragraph became a table).
-        if (treeRebuilt) {
-            if (cursorBlock && cursorBlock.isContent())
-                cursorBlock.setCursor(begin, end, true);
-            else
-                this.focus();
-
-            return;
-        }
-
-        // Incremental (updateContents) path. Clone the paths so
-        // `queryBlock(path)` can't drain the caller's arrays — notably the
-        // selection object stored in the undo stack.
+        // Resolve both endpoints in the current tree, including full rebuilds:
+        // cached block references may be detached, and collapsing to the anchor
+        // would discard the original cross-block range and its direction.
         const anchorBlock = this.scrollPage?.queryBlock([...anchor.path]);
         const focusBlock = this.scrollPage?.queryBlock([...focus.path]);
         if (!anchorBlock || !anchorBlock.isContent() || !focusBlock || !focusBlock.isContent()) {
@@ -516,7 +516,7 @@ export class Editor {
 
         // The tree was rebuilt wholesale, so the selection's cached block
         // references are stale — resolve the caret from paths instead.
-        this._restoreSelection(selection, true);
+        this._restoreSelection(selection);
     }
 
     setContent(content: TState[] | string, autoFocus = false) {

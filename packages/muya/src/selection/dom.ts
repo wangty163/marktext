@@ -28,11 +28,10 @@ function withoutCaretAnchors(text: string): string {
 }
 
 /**
- * Translate a DOM offset taken inside the caret anchor into the equivalent
- * number of real characters. The browser places the insertion point before the
- * zero-width space and inserts typed text there, so the anchor can end up
- * anywhere inside the span's text; counting it would push the model offset one
- * past the end of the block.
+ * Translate a DOM range offset into real characters. Element offsets count
+ * children, not characters: deleting a final line can leave the caret between
+ * the remaining text and a browser-inserted <br>. Caret-anchor text also omits
+ * its zero-width placeholder, wherever newly typed text has moved it.
  */
 export function normalizeCaretAnchorOffset(node: Node, offset: number): number {
     if (isCaretAnchor(node)) {
@@ -45,6 +44,14 @@ export function normalizeCaretAnchorOffset(node: Node, offset: number): number {
 
     if (isCaretAnchor(node.parentNode))
         return withoutCaretAnchors((node.textContent ?? '').slice(0, offset)).length;
+
+    if (node.nodeType !== Node.TEXT_NODE) {
+        let effective = 0;
+        for (const child of Array.from(node.childNodes).slice(0, offset))
+            effective += getTextContent(child, OFFSET_BLACKLIST).length;
+
+        return effective;
+    }
 
     return offset;
 }
@@ -96,6 +103,16 @@ export function getTextContent(node: Node, blackList: string[] = []) {
 
     if (node.nodeType === Node.TEXT_NODE) {
         text += node.textContent;
+    }
+    else if (
+        isElement(node)
+        && node.tagName === 'IMG'
+        && node.parentElement?.classList.contains(CLASS_NAMES.MU_IMAGE_CONTAINER)
+    ) {
+        // A native caret can sit inside the image container after its <img>.
+        // It occupies the source token's length there, just as when the same
+        // image is counted through its outer wrapper below.
+        text += node.closest(`.${CLASS_NAMES.MU_INLINE_IMAGE}`)?.getAttribute('data-raw') ?? '';
     }
     else if (
         isElement(node)

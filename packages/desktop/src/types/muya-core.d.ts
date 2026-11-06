@@ -86,6 +86,38 @@ declare module '@muyajs/core' {
 
   export function renderToStaticHTML(...args: any[]): any
 
+  export interface IIndexPosition {
+    line: number
+    ch: number
+  }
+  export interface IIndexCursor {
+    anchor: IIndexPosition | null
+    focus: IIndexPosition | null
+  }
+  export type MarkdownIndentDirection = 'add' | 'subtract'
+  export interface IMarkdownIndentOptions {
+    tabSize: number
+    listIndentation: number | string
+    preserveParagraphLineBreaks?: boolean
+    trimUnnecessaryCodeBlockEmptyLines?: boolean
+    frontMatter?: boolean
+    footnote?: boolean
+    texMathDollars?: boolean
+    texMathGfm?: boolean
+    texMathSingleBackslash?: boolean
+    texMathDoubleBackslash?: boolean
+  }
+  export interface IMarkdownIndentResult {
+    markdown: string
+    cursor: IIndexCursor
+  }
+  export function indentMarkdownSelection(
+    markdown: string,
+    cursor: IIndexCursor,
+    direction: MarkdownIndentDirection,
+    options: IMarkdownIndentOptions
+  ): IMarkdownIndentResult | null
+
   export function escapeHTML(str: string): string
   export function unescapeHTML(str: string): string
   export function sanitize(html: string, config?: any, isInline?: boolean): string

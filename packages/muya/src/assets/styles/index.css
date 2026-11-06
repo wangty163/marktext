@@ -51,6 +51,7 @@
     --strong-color: inherit;
     --em-color: inherit;
     --list-marker-color: inherit;
+    --list-indent: 30px;
     --hr-color: var(--editor-color-10);
 }
 

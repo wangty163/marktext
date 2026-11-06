@@ -2,6 +2,13 @@ export type { ILocale } from './i18n/types';
 export { de, en, es, fr, ja, ko, nl, pt, ru, tr, zhCN, zhTW } from './locales';
 
 export { Muya } from './muya';
+export type {
+    IMarkdownIndentOptions,
+    IMarkdownIndentResult,
+    MarkdownIndentDirection,
+} from './selection/markdownIndentation';
+export { indentMarkdownSelection } from './selection/markdownIndentation';
+export type { IIndexCursor, IIndexPosition } from './selection/offsetCursor';
 export type { ITocItem } from './state/getTOC';
 export { MarkdownToHtml } from './state/markdownToHtml';
 export { renderToStaticHTML } from './state/renderToStaticHTML';

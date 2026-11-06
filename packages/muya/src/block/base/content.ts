@@ -416,6 +416,10 @@ class Content extends TreeNode {
         return false;
     }
 
+    get isComposing() {
+        return this.isComposed;
+    }
+
     constructor(muya: Muya, text: string) {
         super(muya);
 

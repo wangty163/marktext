@@ -38,9 +38,25 @@ describe('shouldCrossBlockCut (#3491)', () => {
         expect(shouldCrossBlockCut('a', false, false)).toBe(true);
     });
 
-    it('cuts on Backspace / Delete', () => {
+    it('cuts on Backspace / Delete / Enter', () => {
         expect(shouldCrossBlockCut('Backspace', false, false)).toBe(true);
         expect(shouldCrossBlockCut('Delete', false, false)).toBe(true);
+        expect(shouldCrossBlockCut('Enter', false, false)).toBe(true);
+    });
+
+    it('cuts on space and printable Unicode, but never on Tab', () => {
+        expect(shouldCrossBlockCut(' ', false, false)).toBe(true);
+        expect(shouldCrossBlockCut('字', false, false)).toBe(true);
+        expect(shouldCrossBlockCut('😀', false, false)).toBe(true);
+        expect(shouldCrossBlockCut('Tab', false, false)).toBe(false);
+    });
+
+    it('does NOT cut on other non-editing command keys', () => {
+        expect(shouldCrossBlockCut('Home', false, false)).toBe(false);
+        expect(shouldCrossBlockCut('End', false, false)).toBe(false);
+        expect(shouldCrossBlockCut('Escape', false, false)).toBe(false);
+        expect(shouldCrossBlockCut('F1', false, false)).toBe(false);
+        expect(shouldCrossBlockCut('Dead', false, false)).toBe(false);
     });
 
     it('does NOT cut on navigation / modifier-only keys', () => {

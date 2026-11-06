@@ -24,6 +24,11 @@ For focused Electron E2E, pass only the exact spec after `pnpm -C packages/deskt
 
 Root `.editorconfig`, Prettier, and ESLint enforce UTF-8, LF endings, two-space indentation, single quotes, 100-column lines, and no semicolons. Use TypeScript for new desktop code, camelCase for symbols and component directories (`editorWithTabs/`), and PascalCase for types. Follow existing colocated `index.vue` entrypoints. Muya has its own ESLint rules: four-space indentation, semicolons, `I`-prefixed interfaces, and `_`-prefixed private members. Comments should explain rationale or invariants, not restate code; follow `.github/COMMENTING-GUIDELINES.md`.
 
+## Source and WYSIWYG Parity
+
+- Source mode and the WYSIWYG editor are two views of the same Markdown document. For the same document, selection, and editing action available in both modes, they must produce the same Markdown bytes that would be saved to the file; WYSIWYG rendering is not permission for different document semantics.
+- Trace both editing paths whenever changing an editing operation or fixing an existing behavior. Reuse a shared transformation where possible, preserve selection/history/persistence behavior, and add a regression that compares the resulting source text in both modes. A mode-specific difference needs an explicit functional reason and a test documenting it.
+
 ## Testing Guidelines
 
 Name tests `*.spec.ts`. Add a focused regression test for behavior changes; there is no repository-wide numeric coverage target. Use Vitest for unit logic and Playwright for real Electron, selection, clipboard, or UI flows. Keep Muya tests beside the affected source; use `test/spec/` for CommonMark or GFM behavior.

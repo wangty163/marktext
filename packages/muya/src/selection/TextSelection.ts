@@ -315,6 +315,7 @@ class TextSelection {
             direction,
             type,
             kind: SelectionType.TEXT,
+            preserveViewport: this._selection.consumePreserveViewport(),
             selectedImage: this._selection.image,
             cursorCoords,
             formats,

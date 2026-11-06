@@ -17,6 +17,12 @@ class ListItem extends Parent {
     static create(muya: Muya, state: IListItemState) {
         const listItem = new ListItem(muya);
         listItem.meta = state.meta;
+        if (state.meta?.extraIndent && listItem.domNode) {
+            const markerWidth = (state.meta.orderMarker?.length ?? 1) + 1;
+            listItem.domNode.style.marginInlineStart = `calc(var(--list-indent) * ${state.meta.extraIndent / markerWidth})`;
+            if (!state.meta.orderMarker)
+                listItem.domNode.classList.add('mu-extra-indent-bullet');
+        }
 
         listItem.append(
             ...state.children.map(child =>

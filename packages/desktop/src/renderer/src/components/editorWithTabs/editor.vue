@@ -166,6 +166,7 @@ interface MuyaChange {
   anchor?: { offset?: number } | null
   focus?: { offset?: number } | null
   cursorCoords?: { y?: number } | null
+  preserveViewport?: boolean
   formats?: SelectionFormatLike[]
   [key: string]: unknown
 }
@@ -2007,7 +2008,7 @@ onMounted(() => {
 
   editor.value.on('selection-change', (changes: MuyaChange) => {
     const y = (changes.cursorCoords?.y ?? null) as number | null
-    if (y != null) {
+    if (!changes.preserveViewport && y != null) {
       if (typewriter.value) {
         const startPosition = container.scrollTop
         const toPosition = startPosition + y - STANDAR_Y

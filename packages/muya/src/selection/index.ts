@@ -28,6 +28,7 @@ class Selection {
     private _text: TextSelection;
     private _image: ImageSelection;
     private _table: TableRectSelection;
+    private _preserveViewportOnce = false;
 
     constructor(private _muya: Muya) {
         this._text = new TextSelection(this._muya, this);
@@ -86,6 +87,16 @@ class Selection {
 
     get isSelectionInSameBlock() {
         return this._text.isSelectionInSameBlock;
+    }
+
+    preserveViewportOnce(): void {
+        this._preserveViewportOnce = true;
+    }
+
+    consumePreserveViewport(): boolean {
+        const preserve = this._preserveViewportOnce;
+        this._preserveViewportOnce = false;
+        return preserve;
     }
 
     selectImage(data: IImageSelectionData): void {

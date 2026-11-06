@@ -325,18 +325,28 @@ export class MarkdownToState {
 
             case 'list_item': {
                 const { listItemType, checked, orderMarker } = token;
+                // marked accepts up to three extra columns on a list marker,
+                // but normally drops them when serializing its list tree.
+                // Preserve them in source mode so selected first items move too.
+                const extraIndent = this._options.preserveParagraphLineBreaks
+                    ? /^ */.exec(token.raw)![0].length
+                    : 0;
+                const itemMeta = {
+                    ...(orderMarker ? { orderMarker } : {}),
+                    ...(extraIndent ? { extraIndent } : {}),
+                };
                 let itemState: IListItemState | ITaskListItemState;
                 if (listItemType === 'task') {
                     itemState = {
                         name: 'task-list-item',
-                        meta: { checked: Boolean(checked) },
+                        meta: { checked: Boolean(checked), ...(extraIndent ? { extraIndent } : {}) },
                         children: [],
                     };
                 }
                 else {
                     itemState = {
                         name: 'list-item',
-                        ...(orderMarker ? { meta: { orderMarker } } : {}),
+                        ...((orderMarker || extraIndent) ? { meta: itemMeta } : {}),
                         children: [],
                     };
                 }
