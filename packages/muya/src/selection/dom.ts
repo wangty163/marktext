@@ -187,9 +187,9 @@ export function getNodeAndOffset(
         const textContent = getTextContent(child, OFFSET_BLACKLIST);
         const textLength = textContent.length;
 
-        // Fix #1460 - put the cursor at the next text node or element if it can be put at the last of /^\n$/ or the next text node/element.
+        // A next-line endpoint must not sit inside the preceding break during native deletion.
         if (
-            /^\n$/.test(textContent) && i !== len - 1
+            textContent.endsWith('\n') && i !== len - 1
                 ? count + textLength > offset
                 : count + textLength >= offset
         ) {

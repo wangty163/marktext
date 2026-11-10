@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it } from 'vitest';
-import { getLegalOffset, getNodeAndOffset } from '../dom';
+import { getLegalOffset, getNodeAndOffset, getOffsetOfParagraph, normalizeCaretAnchorOffset } from '../dom';
 
 // Regression coverage for the `Failed to execute 'setStart' on 'Range'`
 // crashes reported in #4575 / #4464 (offset past the rendered text after a
@@ -9,6 +9,38 @@ import { getLegalOffset, getNodeAndOffset } from '../dom';
 // browser selection). The legacy engine clamped the recorded offset to the
 // node's legal range before touching the DOM Range API; the rewrite dropped
 // that guard. `getLegalOffset` restores it.
+describe('getNodeAndOffset line-break boundaries', () => {
+    it.each([
+        '<span>alpha</span><span>\n</span><span>beta</span>',
+        '<span>alpha</span><span class="mu-hard-line-break"><span>  </span>\n</span><span>beta</span>',
+        '<span>alpha\n</span><span>beta</span>',
+    ])('places the caret in the following text after a newline in %j', (html) => {
+        const content = document.createElement('span');
+        content.innerHTML = html;
+        const boundary = content.textContent!.indexOf('beta');
+        const endpoint = getNodeAndOffset(content, boundary);
+
+        expect(endpoint).toEqual({ node: content.lastChild!.firstChild!, offset: 0 });
+        expect(getOffsetOfParagraph(endpoint.node, content) + normalizeCaretAnchorOffset(endpoint.node, endpoint.offset)).toBe(boundary);
+    });
+
+    it('keeps a terminal hard-break endpoint inside the newline', () => {
+        const content = document.createElement('span');
+        content.innerHTML = '<span>alpha</span><span class="mu-hard-line-break"><span>  </span>\n</span>';
+
+        expect(getNodeAndOffset(content, 8)).toEqual({ node: content.lastChild!.lastChild!, offset: 1 });
+    });
+
+    it('does not advance an endpoint before the hard-break newline', () => {
+        const content = document.createElement('span');
+        content.innerHTML = '<span>alpha</span><span class="mu-hard-line-break"><span>  </span>\n</span><span>beta</span>';
+        const endpoint = getNodeAndOffset(content, 7);
+
+        expect(endpoint).toEqual({ node: content.childNodes[1].firstChild!.firstChild!, offset: 2 });
+        expect(getOffsetOfParagraph(endpoint.node, content) + normalizeCaretAnchorOffset(endpoint.node, endpoint.offset)).toBe(7);
+    });
+});
+
 describe('getLegalOffset', () => {
     it('clamps a text-node offset to the text length', () => {
         const text = document.createTextNode('abc');
