@@ -465,6 +465,7 @@ onMounted(() => {
     indentWithTabs: false,
     viewportMargin: Infinity,
     extraKeys: {
+      'Shift-Enter': (cm: CMInstance) => cm.replaceSelection('\n', 'end', '+input'),
       Tab: (cm: CMInstance) => handleSelectionIndent(cm, 'add'),
       'Shift-Tab': (cm: CMInstance) => handleSelectionIndent(cm, 'subtract')
     }

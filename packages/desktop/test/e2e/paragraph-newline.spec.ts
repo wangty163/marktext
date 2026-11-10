@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 import type { Page } from 'playwright'
 import {
   launchWithMarkdown, launchElectron, paragraphText, placeCaretAtOffset, placeCaretInEditor, saveWithKeyboard,
-  waitForEditor, sendIpcToRenderer
+  waitForEditor, sendIpcToRenderer, enterSourceMode
 } from './helpers'
 import { closeTestApplication, terminateTestApplication } from './appLifecycle'
 
@@ -43,6 +43,110 @@ test('two Enter presses leave a blank line after an empty list item', async() =>
     throw error
   }
 })
+
+for (const { key, replaceSelection } of [
+  { key: 'Enter', replaceSelection: false },
+  { key: 'Shift+Enter', replaceSelection: false },
+  { key: 'Shift+Enter', replaceSelection: true }
+]) {
+  test(`${key} after line-end navigation${replaceSelection ? ' with a selection' : ''} saves identical source and WYSIWYG text`, async() => {
+    const results: string[] = []
+    const prefix = replaceSelection ? 'al' : 'alpha'
+    const expected = `${prefix}\nbeta\nomega\n`
+    for (const mode of ['source', 'wysiwyg']) {
+      const launched = await launchWithMarkdown('alpha\nomega\n')
+      let { app, page } = launched
+      const { filePath } = launched
+      try {
+        if (mode === 'source') {
+          await enterSourceMode(page, app)
+          await page.evaluate(() => {
+            const cm = (document.querySelector('.source-code .CodeMirror') as Element & {
+              CodeMirror: { focus(): void; setCursor(line: number, ch: number): void }
+            }).CodeMirror
+            cm.focus()
+            cm.setCursor(0, 5)
+          })
+        } else {
+          await placeCaretAtOffset(page, 5)
+        }
+        await page.keyboard.press(lineEnd)
+        if (mode === 'wysiwyg') {
+          await expect(page.locator('.mu-paragraph')).toHaveCount(1)
+          await expect.poll(() => paragraphText(page)).toBe('alpha\nomega')
+        }
+        if (replaceSelection) {
+          for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowLeft')
+          await expect.poll(() => page.evaluate(() => {
+            const source = document.querySelector('.source-code .CodeMirror') as
+              | (Element & { CodeMirror: { getSelection(): string } })
+              | null
+            return source ? source.CodeMirror.getSelection() : window.getSelection()?.toString()
+          })).toBe('pha')
+        }
+        await page.keyboard.press(key)
+        if (mode === 'source') {
+          await expect.poll(() => page.evaluate(() => {
+            const cm = (document.querySelector('.source-code .CodeMirror') as Element & {
+              CodeMirror: { getValue(): string }
+            }).CodeMirror
+            return cm.getValue()
+          }), { message: `${mode}: newline inserted before typing` }).toBe(`${prefix}\n\nomega\n`)
+        } else {
+          await expect.poll(() => paragraphText(page), {
+            message: `${mode}: newline inserted before typing`
+          }).toBe(`${prefix}\n\nomega`)
+        }
+        if (mode === 'source' && replaceSelection) {
+          const readSource = () => page.evaluate(() => {
+            const cm = (document.querySelector('.source-code .CodeMirror') as Element & {
+              CodeMirror: {
+                getValue(): string
+                getCursor(endpoint: string): { line: number; ch: number }
+              }
+            }).CodeMirror
+            const anchor = cm.getCursor('anchor')
+            const focus = cm.getCursor('head')
+            return {
+              markdown: cm.getValue(),
+              anchor: { line: anchor.line, ch: anchor.ch },
+              focus: { line: focus.line, ch: focus.ch }
+            }
+          })
+          await sendIpcToRenderer(app, 'mt::editor-edit-action', 'undo')
+          await expect.poll(readSource).toEqual({
+            markdown: 'alpha\nomega\n',
+            anchor: { line: 0, ch: 5 },
+            focus: { line: 0, ch: 2 }
+          })
+          await sendIpcToRenderer(app, 'mt::editor-edit-action', 'redo')
+          await expect.poll(readSource).toEqual({
+            markdown: `${prefix}\n\nomega\n`,
+            anchor: { line: 1, ch: 0 },
+            focus: { line: 1, ch: 0 }
+          })
+        }
+        await page.keyboard.type('beta')
+        await saveWithKeyboard(app)
+        await expect.poll(() => fs.readFileSync(filePath, 'utf8')).toBe(expected)
+        results.push(fs.readFileSync(filePath, 'utf8'))
+        await closeTestApplication(app)
+
+        const reopened = await launchElectron([filePath])
+        app = reopened.app
+        page = reopened.page
+        await waitForEditor(page)
+        await expect.poll(() => paragraphText(page)).toBe(expected.slice(0, -1))
+        await expect(page.locator('.mu-paragraph')).toHaveCount(1)
+        await closeTestApplication(app)
+      } catch (error) {
+        terminateTestApplication(app)
+        throw error
+      }
+    }
+    expect(results[0]).toBe(results[1])
+  })
+}
 
 test('Enter creates consecutive lines in the editor, saved file and reopened document', async() => {
   const launched = await launchWithMarkdown('alpha\n')
