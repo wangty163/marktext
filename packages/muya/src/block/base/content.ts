@@ -496,7 +496,7 @@ class Content extends TreeNode {
     }
 
     arrowHandler(event: Event) {
-        if (!isKeyboardEvent(event))
+        if (!isKeyboardEvent(event) || event.metaKey || event.ctrlKey || event.altKey)
             return;
 
         const previousContentBlock = this.previousContentInContext();

@@ -133,7 +133,7 @@ class TableCellContent extends Format {
     }
 
     override arrowHandler(event: Event) {
-        if (!isKeyboardEvent(event))
+        if (!isKeyboardEvent(event) || event.metaKey || event.ctrlKey || event.altKey)
             return;
 
         const previousRow = this._findPreviousRow();

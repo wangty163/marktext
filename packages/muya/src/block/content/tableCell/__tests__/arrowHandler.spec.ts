@@ -90,6 +90,42 @@ function expectCaretAt(content: Content, offset: number): void {
 }
 
 describe('tableCellContent arrow navigation', () => {
+    const modifiedArrows = (['metaKey', 'ctrlKey', 'altKey'] as const).flatMap(modifier =>
+        (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'] as const)
+            .map(key => ({ modifier, key })));
+
+    it.each(modifiedArrows)('$modifier+$key leaves table navigation to the browser', async ({ modifier, key }) => {
+        const muya = bootMuya('| ab | cd |\n| --- | --- |\n| ef | gh |\n');
+        const cells = tableCells(muya);
+        const backwards = key === 'ArrowUp' || key === 'ArrowLeft';
+        const cell = backwards ? cells[0] : cells[3];
+        const offset = backwards ? 0 : cell.text.length;
+        muya.editor.activeContentBlock = cell;
+        cell.setCursor(offset, offset, true);
+        muya.flush();
+        const before = muya.getState();
+        const markdown = muya.getMarkdown();
+        const caret = muya.getCursorOffset();
+        const event = {
+            key,
+            [modifier]: true,
+            preventDefault: vi.fn(),
+            stopPropagation: vi.fn(),
+        };
+
+        cell.arrowHandler(event as unknown as KeyboardEvent);
+        await flush();
+        muya.flush();
+
+        expect(muya.getState()).toEqual(before);
+        expect(muya.getMarkdown()).toBe(markdown);
+        expect(muya.getCursorOffset()).toEqual(caret);
+        expectCaretAt(cell, offset);
+        expect(event.preventDefault).not.toHaveBeenCalled();
+        expect(event.stopPropagation).not.toHaveBeenCalled();
+        expect(muya.getHistory().stack.undo).toEqual([]);
+    });
+
     it('arrowDown from a header cell lands the caret in the same column of the body row', async () => {
         // Cells in document order: [ab, cd] (header), [ef, gh] (body).
         const muya = bootMuya('| ab | cd |\n| --- | --- |\n| ef | gh |\n');

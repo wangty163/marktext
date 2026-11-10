@@ -1,7 +1,10 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from '../fixtures/muya';
 import { getMarkdown } from '../helpers/api';
-import { loadMarkdown } from '../helpers/keyboard';
+import { loadMarkdown, metaKey } from '../helpers/keyboard';
+
+const lineStart = metaKey() === 'Meta' ? 'Meta+ArrowLeft' : 'Home';
+const lineEnd = metaKey() === 'Meta' ? 'Meta+ArrowRight' : 'End';
 
 async function readSelection(page: Page) {
     return page.evaluate(() => {
@@ -61,16 +64,19 @@ for (const { name, markdown } of cases) {
 test('undo/redo remembers the edit location after the caret moves elsewhere', async ({ page }) => {
     await loadMarkdown(page, 'first\n\nsecond');
     await page.locator('.mu-paragraph-content').first().click();
-    await page.keyboard.press('End');
+    await page.keyboard.press(lineEnd);
     await page.keyboard.type('X');
     await expect.poll(() => getMarkdown(page)).toBe('firstX\n\nsecond\n');
     await page.locator('.mu-paragraph-content').last().click();
-    await page.keyboard.press('Home');
+    await page.keyboard.press(lineStart);
     await page.keyboard.press('ArrowRight');
+    await expect.poll(() => readSelection(page)).toEqual({
+        anchor: 1, focus: 1, anchorText: 'second', focusText: 'second',
+    });
     await page.keyboard.type('Y');
     await expect.poll(() => getMarkdown(page)).toBe('firstX\n\nsYecond\n');
     await page.locator('.mu-paragraph-content').first().click();
-    await page.keyboard.press('Home');
+    await page.keyboard.press(lineStart);
 
     await page.evaluate(() => window.muya!.undo());
     await expect.poll(() => readSelection(page)).toEqual({

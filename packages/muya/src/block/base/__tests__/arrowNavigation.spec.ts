@@ -86,6 +86,7 @@ function arrowAt(
     content: Content,
     key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight',
     offset: number,
+    modifiers: KeyboardEventInit = {},
 ): FakeArrowEvent {
     muya.editor.activeContentBlock = content;
     content.setCursor(offset, offset, true);
@@ -94,6 +95,10 @@ function arrowAt(
         stopPropagation: vi.fn(),
         key,
         shiftKey: false,
+        metaKey: false,
+        ctrlKey: false,
+        altKey: false,
+        ...modifiers,
     } as unknown as FakeArrowEvent;
     content.arrowHandler(event);
     return event;
@@ -528,6 +533,54 @@ describe('content arrowHandler — RTL cross-block navigation (#3568)', () => {
 
         expect(contentByText(muya, 'alpha').getCursor()).toBeNull();
         expect(event.preventDefault).not.toHaveBeenCalled();
+    });
+});
+
+describe('content arrowHandler — modified arrows remain native', () => {
+    const cases = (['metaKey', 'ctrlKey', 'altKey'] as const).flatMap(modifier =>
+        (['ltr', 'rtl'] as const).flatMap(direction =>
+            (['document', 'interior'] as const).flatMap(boundary =>
+                (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'] as const)
+                    .map(key => ({ modifier, direction, boundary, key })))));
+
+    it.each(cases)('$modifier+$key at $boundary boundary ($direction) leaves the document untouched', async ({
+        modifier,
+        direction,
+        boundary,
+        key,
+    }) => {
+        const muya = bootMuya('alpha\n\nbeta\n\ngamma\n');
+        muya.domNode.setAttribute('dir', direction);
+        const previousKey = direction === 'rtl' ? 'ArrowRight' : 'ArrowLeft';
+        const movesBack = key === 'ArrowUp' || key === previousKey;
+        const text = boundary === 'interior' ? 'beta' : movesBack ? 'alpha' : 'gamma';
+        const content = contentByText(muya, text);
+        // A nonzero ArrowUp offset exercises the document-start fallback.
+        const offset = key === 'ArrowUp' ? 2 : movesBack ? 0 : text.length;
+        muya.editor.activeContentBlock = content;
+        content.setCursor(offset, offset, true);
+        await flush();
+        muya.flush();
+
+        const beforeState = muya.getState();
+        const beforeMarkdown = muya.getMarkdown();
+        const beforeCaret = muya.getCursorOffset();
+        expect(content.getCursor()?.start.offset).toBe(offset);
+        expect(content.getCursor()?.end.offset).toBe(offset);
+        expect(muya.getHistory().stack.undo).toEqual([]);
+
+        const event = arrowAt(muya, content, key, offset, { [modifier]: true });
+        await flush();
+        muya.flush();
+
+        expect.soft(muya.getState()).toEqual(beforeState);
+        expect.soft(muya.getMarkdown()).toBe(beforeMarkdown);
+        expect.soft(muya.getCursorOffset()).toEqual(beforeCaret);
+        expect.soft(content.getCursor()?.start.offset).toBe(offset);
+        expect.soft(content.getCursor()?.end.offset).toBe(offset);
+        expect.soft(event.preventDefault).not.toHaveBeenCalled();
+        expect.soft(event.stopPropagation).not.toHaveBeenCalled();
+        expect.soft(muya.getHistory().stack.undo).toEqual([]);
     });
 });
 
